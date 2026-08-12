@@ -1,0 +1,19 @@
+Third-Party Notices
+
+This asset package includes the following third-party content:
+
+1. Font: Jaldi
+   - License: SIL Open Font License, Version 1.1
+   - Copyright (c) 2011-2015, Omnibus-Type (www.omnibus-type.com omnibus.type@gmail.com)
+   - Jaldi is a trademark of Omnibus-Type.
+   - Reserved Font Names: 'Jaldi' and 'Asap'
+
+   The full license text can be found at: http://scripts.sil.org/OFL
+
+   Summary of the SIL Open Font License:
+   - This Font Software is licensed under the SIL Open Font License, Version 1.1.
+   - You are free to use, modify, and distribute the font, provided that you do not sell the font on its own. 
+   - You must include a copy of this license with any distribution.
+   - This license does not grant any rights to use the font name or trademarks without permission from Omnibus-Type.
+
+For more details, please refer to the full license text available at the link above.

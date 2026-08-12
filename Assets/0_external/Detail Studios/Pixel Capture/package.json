@@ -1,0 +1,22 @@
+{
+  "name": "com.detailstudios.pixelcapture",
+  "version": "1.0.0",
+  "displayName": "Pixel Capture",
+  "description": "Immersive photo mode asset",
+  "unity": "2019.1",
+  "documentationUrl": "https://detailstudios.wordpress.com/wp-content/uploads/2024/07/documentation-pixel-capture.pdf",
+  "dependencies": {
+    "com.unity.postprocessing": "3.2.2"
+  },
+  "keywords": [
+    "Phone",
+    "Photo Mode",
+    "Pixel capture",
+    "Photo"
+  ],
+  "author": {
+    "name": "Detail Studios",
+    "email": "studiosdetail@gmail.com",
+    "url": "https://detailstudios.wordpress.com/"
+  }
+}

@@ -1,0 +1,457 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.AI;
+
+[DisallowMultipleComponent]
+[RequireComponent(typeof(Animator), typeof(NavMeshAgent))]
+public class KidWaypointAnimationTester : MonoBehaviour
+{
+    private const string WalkPlaceLabel = "walk_place";
+    private const string SitGroundLabel = "sit_ground";
+    private const string EnterSofaLabel = "enter_sofa";
+    private const string SitChairLabel = "sit_chair";
+    private const string AnimatorLayerPrefix = "Base Layer.";
+
+    [Header("Scene References")]
+    [SerializeField] private WaypointGroup waypointGroup;
+    [SerializeField] private Animator animator;
+    [SerializeField] private NavMeshAgent agent;
+
+    [Header("Timing")]
+    [SerializeField, Min(0.1f)] private float minActionDuration = 3f;
+    [SerializeField, Min(0.1f)] private float maxActionDuration = 7f;
+    [SerializeField, Min(1f)] private float travelTimeout = 20f;
+    [SerializeField, Min(0f)] private float animationBlendTime = 0.2f;
+
+    [Header("Movement Animations")]
+    [SerializeField] private string[] locomotionAnimations = { "Walking", "RunForward" };
+    [SerializeField] private float walkSpeed = 3.5f;
+    [SerializeField] private float runSpeed = 5f;
+
+    [Header("Neutral - walk_place (Used By Random Test)")]
+    [SerializeField] private string[] neutralStandingAnimations =
+    {
+        "Breathing Idle"
+    };
+
+    [Header("Emotional - Standing (Not Used By Random Test)")]
+    [SerializeField] private string[] emotionalStandingAnimations =
+    {
+        "Panic",
+        "AngryStandNormal",
+        "AngryStandNormal_1",
+        "Crying"
+    };
+
+    [Header("Neutral - sit_ground (Used By Random Test)")]
+    [SerializeField] private string[] neutralGroundAnimations =
+    {
+        "SitGround",
+        "SitGroundUsingPhone"
+    };
+
+    [Header("Emotional - Ground (Not Used By Random Test)")]
+    [SerializeField] private string[] emotionalGroundAnimations =
+    {
+        "GroundPain"
+    };
+
+    [Header("Neutral - sit_chair (Used By Random Test)")]
+    [SerializeField] private string[] neutralChairAnimations =
+    {
+        "SitChairIdle",
+        "SitChairUsingPhone"
+    };
+
+    [Header("Emotional - Chair (Not Used By Random Test)")]
+    [SerializeField] private string[] emotionalChairAnimations =
+    {
+        "SitChairFear",
+        "SitChairYell"
+    };
+
+    public IReadOnlyList<string> EmotionalStandingAnimations => emotionalStandingAnimations;
+    public IReadOnlyList<string> EmotionalGroundAnimations => emotionalGroundAnimations;
+    public IReadOnlyList<string> EmotionalChairAnimations => emotionalChairAnimations;
+
+    private readonly List<LabeledWaypoint> activityWaypoints = new List<LabeledWaypoint>();
+    private readonly List<LabeledWaypoint> sofaEntrances = new List<LabeledWaypoint>();
+    private readonly List<LabeledWaypoint> chairSeats = new List<LabeledWaypoint>();
+
+    private Coroutine testRoutine;
+    private LabeledWaypoint previousActivityWaypoint;
+    private LabeledWaypoint currentChairSeat;
+
+    private void Reset()
+    {
+        animator = GetComponent<Animator>();
+        agent = GetComponent<NavMeshAgent>();
+        waypointGroup = FindFirstObjectByType<WaypointGroup>();
+    }
+
+    private void Awake()
+    {
+        ResolveReferences();
+        CacheWaypoints();
+
+        if (animator != null)
+        {
+            animator.applyRootMotion = false;
+        }
+    }
+
+    private void Start()
+    {
+        StartTesting();
+    }
+
+    private void OnDisable()
+    {
+        StopTesting();
+    }
+
+    [ContextMenu("Start Random Animation Test")]
+    public void StartTesting()
+    {
+        if (!isActiveAndEnabled || testRoutine != null)
+        {
+            return;
+        }
+
+        ResolveReferences();
+        CacheWaypoints();
+
+        if (animator == null || agent == null || waypointGroup == null || activityWaypoints.Count == 0)
+        {
+            Debug.LogWarning($"{name}: Random waypoint test is missing Animator, NavMeshAgent, WaypointGroup, or activity waypoints.", this);
+            return;
+        }
+
+        testRoutine = StartCoroutine(TestRoutine());
+    }
+
+    [ContextMenu("Stop Random Animation Test")]
+    public void StopTesting()
+    {
+        if (testRoutine != null)
+        {
+            StopCoroutine(testRoutine);
+            testRoutine = null;
+        }
+    }
+
+    [ContextMenu("Refresh Waypoints")]
+    public void CacheWaypoints()
+    {
+        activityWaypoints.Clear();
+        sofaEntrances.Clear();
+        chairSeats.Clear();
+
+        if (waypointGroup == null)
+        {
+            return;
+        }
+
+        waypointGroup.RefreshList();
+
+        foreach (LabeledWaypoint waypoint in waypointGroup.Waypoints)
+        {
+            if (waypoint == null)
+            {
+                continue;
+            }
+
+            if (HasLabel(waypoint, WalkPlaceLabel) || HasLabel(waypoint, SitGroundLabel) || HasLabel(waypoint, EnterSofaLabel))
+            {
+                activityWaypoints.Add(waypoint);
+            }
+
+            if (HasLabel(waypoint, EnterSofaLabel))
+            {
+                sofaEntrances.Add(waypoint);
+            }
+            else if (HasLabel(waypoint, SitChairLabel))
+            {
+                chairSeats.Add(waypoint);
+            }
+        }
+    }
+
+    private IEnumerator TestRoutine()
+    {
+        while (enabled)
+        {
+            LabeledWaypoint target = PickActivityWaypoint();
+            if (target == null)
+            {
+                yield break;
+            }
+
+            PrepareToTravel();
+
+            string locomotion = PickValidAnimation(locomotionAnimations, "Walking");
+            agent.speed = string.Equals(locomotion, "RunForward", StringComparison.Ordinal) ? runSpeed : walkSpeed;
+            PlayAnimation(locomotion);
+
+            if (!TrySetDestination(target.Position))
+            {
+                Debug.LogWarning($"{name}: Cannot find NavMesh near waypoint {target.name} ({target.Label}).", target);
+                yield return null;
+                continue;
+            }
+
+            yield return WaitForArrival(target);
+
+            if (!agent.enabled || !agent.isOnNavMesh || agent.pathPending || agent.remainingDistance > GetArrivalDistance(target) + 0.1f)
+            {
+                Debug.LogWarning($"{name}: Timed out while travelling to {target.name} ({target.Label}).", target);
+                continue;
+            }
+
+            agent.isStopped = true;
+            target.Arrive(gameObject);
+            previousActivityWaypoint = target;
+
+            if (HasLabel(target, EnterSofaLabel))
+            {
+                EnterNearestChair(target);
+            }
+            else if (HasLabel(target, SitGroundLabel))
+            {
+                LockToWaypoint(target);
+                PlayAnimation(PickValidAnimation(neutralGroundAnimations, "SitGround"));
+            }
+            else
+            {
+                transform.rotation = target.transform.rotation;
+                PlayAnimation(PickValidAnimation(neutralStandingAnimations, "Breathing Idle"));
+            }
+
+            yield return new WaitForSeconds(UnityEngine.Random.Range(minActionDuration, maxActionDuration));
+        }
+
+        testRoutine = null;
+    }
+
+    private void PrepareToTravel()
+    {
+        Vector3 departurePosition = transform.position;
+        Quaternion departureRotation = transform.rotation;
+
+        if (currentChairSeat != null)
+        {
+            LabeledWaypoint exit = FindNearest(currentChairSeat.Position, sofaEntrances);
+            if (exit != null)
+            {
+                departurePosition = exit.Position;
+                departureRotation = exit.transform.rotation;
+            }
+
+            currentChairSeat = null;
+        }
+
+        if (agent.enabled)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+            agent.enabled = false;
+        }
+
+        if (NavMesh.SamplePosition(departurePosition, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+        {
+            transform.SetPositionAndRotation(hit.position, departureRotation);
+        }
+        else
+        {
+            transform.SetPositionAndRotation(departurePosition, departureRotation);
+        }
+
+        agent.enabled = true;
+        agent.isStopped = false;
+    }
+
+    private bool TrySetDestination(Vector3 targetPosition)
+    {
+        if (!agent.enabled || !agent.isOnNavMesh)
+        {
+            return false;
+        }
+
+        if (!NavMesh.SamplePosition(targetPosition, out NavMeshHit hit, 2f, agent.areaMask))
+        {
+            return false;
+        }
+
+        agent.isStopped = false;
+        return agent.SetDestination(hit.position);
+    }
+
+    private IEnumerator WaitForArrival(LabeledWaypoint target)
+    {
+        float elapsed = 0f;
+
+        while (elapsed < travelTimeout)
+        {
+            if (agent.enabled && agent.isOnNavMesh && !agent.pathPending &&
+                agent.pathStatus != NavMeshPathStatus.PathInvalid &&
+                agent.remainingDistance <= GetArrivalDistance(target))
+            {
+                yield break;
+            }
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+    }
+
+    private void EnterNearestChair(LabeledWaypoint entrance)
+    {
+        LabeledWaypoint chair = FindNearest(entrance.Position, chairSeats);
+        if (chair == null)
+        {
+            Debug.LogWarning($"{name}: No sit_chair waypoint was found for {entrance.name}.", entrance);
+            PlayAnimation(PickValidAnimation(neutralStandingAnimations, "Breathing Idle"));
+            return;
+        }
+
+        currentChairSeat = chair;
+        LockToWaypoint(chair);
+        chair.Arrive(gameObject);
+        PlayAnimation(PickValidAnimation(neutralChairAnimations, "SitChairIdle"));
+    }
+
+    private void LockToWaypoint(LabeledWaypoint waypoint)
+    {
+        if (agent.enabled)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+            agent.enabled = false;
+        }
+
+        transform.SetPositionAndRotation(waypoint.Position, waypoint.transform.rotation);
+    }
+
+    private LabeledWaypoint PickActivityWaypoint()
+    {
+        if (activityWaypoints.Count == 0)
+        {
+            return null;
+        }
+
+        if (activityWaypoints.Count == 1)
+        {
+            return activityWaypoints[0];
+        }
+
+        LabeledWaypoint selected;
+        int attempts = 0;
+
+        do
+        {
+            selected = activityWaypoints[UnityEngine.Random.Range(0, activityWaypoints.Count)];
+            attempts++;
+        }
+        while (selected == previousActivityWaypoint && attempts < 8);
+
+        return selected;
+    }
+
+    private string PickValidAnimation(string[] candidates, string fallback)
+    {
+        if (candidates != null && candidates.Length > 0)
+        {
+            int startIndex = UnityEngine.Random.Range(0, candidates.Length);
+
+            for (int offset = 0; offset < candidates.Length; offset++)
+            {
+                string candidate = candidates[(startIndex + offset) % candidates.Length];
+                if (HasAnimation(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return HasAnimation(fallback) ? fallback : string.Empty;
+    }
+
+    private void PlayAnimation(string stateName)
+    {
+        if (string.IsNullOrWhiteSpace(stateName) || animator == null)
+        {
+            return;
+        }
+
+        animator.CrossFadeInFixedTime(Animator.StringToHash(AnimatorLayerPrefix + stateName), animationBlendTime);
+    }
+
+    private bool HasAnimation(string stateName)
+    {
+        return animator != null && !string.IsNullOrWhiteSpace(stateName) &&
+               animator.HasState(0, Animator.StringToHash(AnimatorLayerPrefix + stateName));
+    }
+
+    private float GetArrivalDistance(LabeledWaypoint waypoint)
+    {
+        return Mathf.Max(0.2f, agent.stoppingDistance, waypoint.ArriveRadius);
+    }
+
+    private void ResolveReferences()
+    {
+        if (animator == null)
+        {
+            animator = GetComponent<Animator>();
+        }
+
+        if (agent == null)
+        {
+            agent = GetComponent<NavMeshAgent>();
+        }
+
+        if (waypointGroup == null)
+        {
+            waypointGroup = FindFirstObjectByType<WaypointGroup>();
+        }
+    }
+
+    private static bool HasLabel(LabeledWaypoint waypoint, string label)
+    {
+        return string.Equals(waypoint.Label, label, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static LabeledWaypoint FindNearest(Vector3 origin, List<LabeledWaypoint> candidates)
+    {
+        LabeledWaypoint nearest = null;
+        float nearestDistance = float.PositiveInfinity;
+
+        foreach (LabeledWaypoint candidate in candidates)
+        {
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            float distance = (candidate.Position - origin).sqrMagnitude;
+            if (distance < nearestDistance)
+            {
+                nearest = candidate;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
+    }
+
+    private void OnValidate()
+    {
+        minActionDuration = Mathf.Max(0.1f, minActionDuration);
+        maxActionDuration = Mathf.Max(minActionDuration, maxActionDuration);
+        travelTimeout = Mathf.Max(1f, travelTimeout);
+        animationBlendTime = Mathf.Max(0f, animationBlendTime);
+        walkSpeed = Mathf.Max(0.1f, walkSpeed);
+        runSpeed = Mathf.Max(walkSpeed, runSpeed);
+    }
+}

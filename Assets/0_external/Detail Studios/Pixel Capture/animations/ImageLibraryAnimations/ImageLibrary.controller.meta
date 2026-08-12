@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c33f15be801a4fb4c985299528551975
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/animations/ImageLibraryAnimations/ImageLibrary.controller
+  uploadId: 685447

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4db7a067e761f6c42800eb5589d8733f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/animations/FilterAnimation/Text/FullscreenUI/FilterTextAnimatorFull.controller
+  uploadId: 685447

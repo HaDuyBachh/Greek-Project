@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bc76acaf796eb6243a8b5e024cb3f3d6
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/animations/AspectRatioAnimation/16_9_enable.anim
+  uploadId: 685447

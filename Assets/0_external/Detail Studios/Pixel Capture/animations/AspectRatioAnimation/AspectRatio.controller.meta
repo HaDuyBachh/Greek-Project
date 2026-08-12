@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 277e79ed7e6e3d544801a865874d2133
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/animations/AspectRatioAnimation/AspectRatio.controller
+  uploadId: 685447

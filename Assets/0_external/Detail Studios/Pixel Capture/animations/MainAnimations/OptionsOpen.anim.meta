@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d5bdd41fee052e843b37b6a513b2ac2f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/animations/MainAnimations/OptionsOpen.anim
+  uploadId: 685447

@@ -4,8 +4,10 @@
 TagManager:
   serializedVersion: 3
   tags:
-  - brows
-  - mouth
+  - phone
+  - emotion
+  - focus
+  - ui_anchor
   layers:
   - Default
   - TransparentFX
@@ -13,7 +15,7 @@ TagManager:
   - 
   - Water
   - UI
-  - 
+  - CameraCollision
   - 
   - 
   - 
