@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5143ea6b59906094ba9b8fc37186f788
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 8400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/CameraRenderTexture/CameraRenderTexture.renderTexture
+  uploadId: 685447

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a0aa460186f16a94bad55b218c5b5213
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4890085278179872738
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Demo/AbstractScene/MainSceneLighting.lighting
+  uploadId: 685447

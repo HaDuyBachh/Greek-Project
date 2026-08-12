@@ -1,0 +1,10 @@
+License for Pixel Capture
+Copyright (c) 2024 Detail Studios
+
+All images and icons included in this asset package were created by Detail Studios and are the intellectual property of the creator. No third-party content has been used in the creation of these images.
+
+You are granted a non-exclusive, worldwide, royalty-free license to use, modify, and distribute the images as part of your Unity projects, both commercial and non-commercial, provided that:
+1. You do not resell or distribute the images as standalone assets or in a manner that allows others to extract them outside of your projects.
+2. The images are not used for unlawful or unethical purposes.
+
+THE ASSET IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE ASSET OR THE USE OR OTHER DEALINGS IN THE ASSET.

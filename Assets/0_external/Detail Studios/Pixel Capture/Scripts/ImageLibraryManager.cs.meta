@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 8ec39645a466bda48bf7315d09f685e2
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Scripts/ImageLibraryManager.cs
+  uploadId: 685447

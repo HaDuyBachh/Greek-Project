@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: c341e0f73603e3f48b252656cc16677f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Scripts/CustomSliderManager.cs
+  uploadId: 685447

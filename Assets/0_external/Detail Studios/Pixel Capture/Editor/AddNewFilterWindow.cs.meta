@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4fe7a91414e9e704d9e8a977c7f98a2e
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Editor/AddNewFilterWindow.cs
+  uploadId: 685447

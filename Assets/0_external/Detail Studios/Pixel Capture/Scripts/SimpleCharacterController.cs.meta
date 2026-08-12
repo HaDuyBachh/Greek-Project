@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: e263fca33bbebf244ad08d24ce4da02b
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Scripts/SimpleCharacterController.cs
+  uploadId: 685447

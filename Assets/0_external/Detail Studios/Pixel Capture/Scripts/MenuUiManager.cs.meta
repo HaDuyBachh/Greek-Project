@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 83c6d7ea7f2e3ba48b5d1c69180d2c41
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Scripts/MenuUiManager.cs
+  uploadId: 685447

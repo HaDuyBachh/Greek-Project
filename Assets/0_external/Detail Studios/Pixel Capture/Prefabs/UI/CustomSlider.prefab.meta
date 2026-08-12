@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 13b591e721b934244a7aee8cdf6f301e
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290426
+  packageName: Pixel Capture
+  packageVersion: 1.0
+  assetPath: Assets/Detail Studios/Pixel Capture/Prefabs/UI/CustomSlider.prefab
+  uploadId: 685447
