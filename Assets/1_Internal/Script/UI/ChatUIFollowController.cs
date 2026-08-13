@@ -42,13 +42,11 @@ public class ChatUIFollowController : MonoBehaviour
     }
 
     [Header("Projection")]
-    [SerializeField] private string cameraName = "Main_room";
     [SerializeField] private Camera roomCamera;
 
     [Header("Pool")]
     [SerializeField] private List<KidChatBinding> kids = new List<KidChatBinding>();
     [SerializeField] private List<ChatSlot> chats = new List<ChatSlot>();
-    [SerializeField] private bool autoDiscoverSceneLinks = true;
     [SerializeField] private bool assignOneChatPerKidOnStart = true;
     [SerializeField] private bool hideUnusedChats = true;
 
@@ -63,8 +61,6 @@ public class ChatUIFollowController : MonoBehaviour
 
     private void Start()
     {
-        Initialize();
-
         if (assignOneChatPerKidOnStart)
         {
             AssignDefaultChats();
@@ -74,18 +70,6 @@ public class ChatUIFollowController : MonoBehaviour
     [ContextMenu("Initialize")]
     public void Initialize()
     {
-        if (roomCamera == null)
-        {
-            roomCamera = ChatUiAnchorUtility.FindCameraByName(cameraName);
-        }
-
-        if (autoDiscoverSceneLinks)
-        {
-            DiscoverChats();
-            DiscoverKidsFromChats();
-        }
-
-        ResolveKidAnchors();
         PrepareChatSlots();
     }
 
@@ -116,50 +100,6 @@ public class ChatUIFollowController : MonoBehaviour
         }
 
         return false;
-    }
-
-    public bool RequestRandomChat(string kidId, out ChatSlot assignedSlot)
-    {
-        return RequestRandomChat(kidId, string.Empty, out assignedSlot);
-    }
-
-    public bool RequestRandomChat(string kidId, string excludedChatId, out ChatSlot assignedSlot)
-    {
-        assignedSlot = GetAssignedChat(kidId);
-        if (assignedSlot != null)
-        {
-            return true;
-        }
-
-        KidChatBinding kid = GetKid(kidId);
-        if (kid == null || !kid.HasAnchor)
-        {
-            return false;
-        }
-
-        List<ChatSlot> availableChats = new List<ChatSlot>();
-        foreach (ChatSlot chat in chats)
-        {
-            if (chat != null && chat.chatRoot != null && !chat.IsInUse && CanKidUseChat(kid, chat))
-            {
-                availableChats.Add(chat);
-            }
-        }
-
-        if (availableChats.Count == 0)
-        {
-            return false;
-        }
-
-        if (availableChats.Count > 1 && !string.IsNullOrWhiteSpace(excludedChatId))
-        {
-            availableChats.RemoveAll(chat =>
-                string.Equals(chat.chatId, excludedChatId, StringComparison.OrdinalIgnoreCase));
-        }
-
-        assignedSlot = availableChats[UnityEngine.Random.Range(0, availableChats.Count)];
-        Assign(assignedSlot, kid);
-        return true;
     }
 
     public bool AssignChatToKid(string kidId, string chatId)
@@ -275,7 +215,8 @@ public class ChatUIFollowController : MonoBehaviour
             ChatUiAnchorFollower follower = chat.chatRoot.GetComponent<ChatUiAnchorFollower>();
             if (follower == null)
             {
-                follower = chat.chatRoot.gameObject.AddComponent<ChatUiAnchorFollower>();
+                Debug.LogError($"{chat.chatRoot.name} requires a visible ChatUiAnchorFollower component.", chat.chatRoot);
+                return;
             }
 
             follower.WorldCamera = roomCamera;
@@ -362,88 +303,6 @@ public class ChatUIFollowController : MonoBehaviour
         return false;
     }
 
-    private void DiscoverChats()
-    {
-        GameObject[] objects = Resources.FindObjectsOfTypeAll<GameObject>();
-        foreach (GameObject sceneObject in objects)
-        {
-            if (sceneObject == null || !sceneObject.scene.IsValid() || !sceneObject.scene.isLoaded)
-            {
-                continue;
-            }
-
-            RectTransform rectTransform = sceneObject.transform as RectTransform;
-            if (rectTransform == null || !sceneObject.name.StartsWith("Chat_", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (GetChat(sceneObject.name) != null)
-            {
-                continue;
-            }
-
-            chats.Add(new ChatSlot
-            {
-                chatId = sceneObject.name,
-                chatRoot = rectTransform
-            });
-        }
-    }
-
-    private void DiscoverKidsFromChats()
-    {
-        foreach (ChatSlot chat in chats)
-        {
-            if (chat == null || string.IsNullOrWhiteSpace(chat.chatId) || !chat.chatId.StartsWith("Chat_", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            string kidId = chat.chatId.Substring("Chat_".Length);
-            KidChatBinding kid = GetKid(kidId);
-            if (kid == null)
-            {
-                kid = new KidChatBinding
-                {
-                    kidId = kidId
-                };
-
-                kids.Add(kid);
-            }
-
-            if (!kid.allowedChatIds.Contains(chat.chatId))
-            {
-                kid.allowedChatIds.Add(chat.chatId);
-            }
-        }
-    }
-
-    private void ResolveKidAnchors()
-    {
-        foreach (KidChatBinding kid in kids)
-        {
-            if (kid == null || string.IsNullOrWhiteSpace(kid.kidId))
-            {
-                continue;
-            }
-
-            if (kid.kidRoot == null)
-            {
-                GameObject kidObject = ChatUiAnchorUtility.FindLoadedSceneObject(kid.kidId);
-                if (kidObject != null)
-                {
-                    kid.kidRoot = kidObject.transform;
-                }
-            }
-
-            if (kid.uiAnchor == null && kid.kidRoot != null)
-            {
-                kid.uiAnchor = ChatUiAnchorUtility.FindAnchorForChild(kid.kidId);
-            }
-        }
-    }
-
     private void PrepareChatSlots()
     {
         foreach (ChatSlot chat in chats)
@@ -456,7 +315,8 @@ public class ChatUIFollowController : MonoBehaviour
             ChatUiAnchorFollower follower = chat.chatRoot.GetComponent<ChatUiAnchorFollower>();
             if (follower == null)
             {
-                follower = chat.chatRoot.gameObject.AddComponent<ChatUiAnchorFollower>();
+                Debug.LogError($"{chat.chatRoot.name} requires a visible ChatUiAnchorFollower component.", chat.chatRoot);
+                continue;
             }
 
             follower.WorldCamera = roomCamera;

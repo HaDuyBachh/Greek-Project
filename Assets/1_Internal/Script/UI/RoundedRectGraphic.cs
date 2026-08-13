@@ -5,13 +5,14 @@ using UnityEngine.UI;
 namespace GreekProject.UI
 {
     [ExecuteAlways]
-    [RequireComponent(typeof(CanvasRenderer), typeof(Mask))]
+    [RequireComponent(typeof(CanvasRenderer))]
     [AddComponentMenu("UI/Rounded Rect Graphic")]
     public sealed class RoundedRectGraphic : MaskableGraphic
     {
         [SerializeField, Range(0f, 0.5f)] private float radiusRatio = 0.12f;
         [SerializeField, Min(1)] private int cornerSegments = 8;
         [SerializeField] private bool showMaskGraphic = true;
+        [SerializeField] private bool clipChildren = true;
 
         public float RadiusRatio
         {
@@ -35,6 +36,16 @@ namespace GreekProject.UI
             {
                 cornerSegments = Mathf.Max(1, value);
                 SetVerticesDirty();
+            }
+        }
+
+        public bool ClipChildren
+        {
+            get => clipChildren;
+            set
+            {
+                clipChildren = value;
+                EnsureMask();
             }
         }
 
@@ -125,12 +136,16 @@ namespace GreekProject.UI
         private void EnsureMask()
         {
             Mask mask = GetComponent<Mask>();
-            if (mask == null)
+            if (clipChildren && mask == null)
             {
                 mask = gameObject.AddComponent<Mask>();
             }
 
-            mask.showMaskGraphic = showMaskGraphic;
+            if (mask != null)
+            {
+                mask.enabled = clipChildren;
+                mask.showMaskGraphic = showMaskGraphic;
+            }
         }
 
         private void ApplyMaskSettings()
@@ -138,6 +153,7 @@ namespace GreekProject.UI
             Mask mask = GetComponent<Mask>();
             if (mask != null)
             {
+                mask.enabled = clipChildren;
                 mask.showMaskGraphic = showMaskGraphic;
             }
         }

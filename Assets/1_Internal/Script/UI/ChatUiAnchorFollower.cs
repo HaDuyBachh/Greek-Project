@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[ExecuteAlways]
+[RequireComponent(typeof(CanvasGroup))]
 public class ChatUiAnchorFollower : MonoBehaviour
 {
     [SerializeField] private Transform worldAnchor;
@@ -10,9 +10,13 @@ public class ChatUiAnchorFollower : MonoBehaviour
     [SerializeField] private bool hideWhenBehindCamera = true;
     [SerializeField] private bool clampToCanvas = true;
     [SerializeField] private Vector2 canvasPadding = new Vector2(24f, 24f);
+    [SerializeField] private RectTransform screenOccluder;
+    [SerializeField, Min(0f)] private float screenOccluderPadding = 8f;
 
     private RectTransform rectTransform;
     private CanvasGroup canvasGroup;
+    private readonly Vector3[] rectCorners = new Vector3[4];
+    private readonly Vector3[] occluderCorners = new Vector3[4];
 
     public Transform WorldAnchor
     {
@@ -30,6 +34,12 @@ public class ChatUiAnchorFollower : MonoBehaviour
     {
         get => canvasRoot;
         set => canvasRoot = value;
+    }
+
+    public void SetScreenOccluder(RectTransform occluder, float padding)
+    {
+        screenOccluder = occluder;
+        screenOccluderPadding = Mathf.Max(0f, padding);
     }
 
     private void Awake()
@@ -58,10 +68,6 @@ public class ChatUiAnchorFollower : MonoBehaviour
         if (canvasGroup == null)
         {
             canvasGroup = GetComponent<CanvasGroup>();
-            if (canvasGroup == null && Application.isPlaying)
-            {
-                canvasGroup = gameObject.AddComponent<CanvasGroup>();
-            }
         }
 
         if (canvasRoot == null)
@@ -73,10 +79,6 @@ public class ChatUiAnchorFollower : MonoBehaviour
             }
         }
 
-        if (worldCamera == null)
-        {
-            worldCamera = ChatUiAnchorUtility.FindCameraByName("Main_room");
-        }
     }
 
     private void UpdatePosition()
@@ -89,10 +91,9 @@ public class ChatUiAnchorFollower : MonoBehaviour
         Vector3 screenPoint = worldCamera.WorldToScreenPoint(worldAnchor.position);
         bool isInFront = screenPoint.z > 0f;
 
-        SetVisible(isInFront || !hideWhenBehindCamera);
-
         if (!isInFront && hideWhenBehindCamera)
         {
+            SetVisible(false);
             return;
         }
 
@@ -103,6 +104,7 @@ public class ChatUiAnchorFollower : MonoBehaviour
         if (canvas != null && canvas.renderMode == RenderMode.ScreenSpaceOverlay)
         {
             rectTransform.position = clampToCanvas ? ClampScreenPosition(targetScreenPosition) : targetScreenPosition;
+            SetVisible(!OverlapsScreenOccluder(null));
             return;
         }
 
@@ -123,6 +125,44 @@ public class ChatUiAnchorFollower : MonoBehaviour
         }
 
         rectTransform.anchoredPosition = anchoredPosition;
+        SetVisible(!OverlapsScreenOccluder(canvasCamera));
+    }
+
+    private bool OverlapsScreenOccluder(Camera chatCanvasCamera)
+    {
+        if (screenOccluder == null || !screenOccluder.gameObject.activeInHierarchy)
+        {
+            return false;
+        }
+
+        Canvas occluderCanvas = screenOccluder.GetComponentInParent<Canvas>();
+        Camera occluderCamera = occluderCanvas != null && occluderCanvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? occluderCanvas.worldCamera
+            : null;
+
+        Rect chatRect = GetScreenRect(rectTransform, chatCanvasCamera, rectCorners);
+        Rect occluderRect = GetScreenRect(screenOccluder, occluderCamera, occluderCorners);
+        occluderRect.xMin -= screenOccluderPadding;
+        occluderRect.xMax += screenOccluderPadding;
+        occluderRect.yMin -= screenOccluderPadding;
+        occluderRect.yMax += screenOccluderPadding;
+        return chatRect.Overlaps(occluderRect);
+    }
+
+    private static Rect GetScreenRect(RectTransform rect, Camera camera, Vector3[] corners)
+    {
+        rect.GetWorldCorners(corners);
+        Vector2 min = RectTransformUtility.WorldToScreenPoint(camera, corners[0]);
+        Vector2 max = min;
+
+        for (int i = 1; i < corners.Length; i++)
+        {
+            Vector2 point = RectTransformUtility.WorldToScreenPoint(camera, corners[i]);
+            min = Vector2.Min(min, point);
+            max = Vector2.Max(max, point);
+        }
+
+        return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
     }
 
     private Vector2 ClampScreenPosition(Vector2 screenPosition)

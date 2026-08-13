@@ -1,0 +1,183 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1f7c929d73d4dc5b22be4180e9e9346, type: 3}
+  m_Name: PhoneVideoLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::GreekProject.Content.VideoLibraryData
+  videos:
+  - id: video-01
+    title: The Strongest Orange Family
+    channel: Rapid Loop
+    description: A fast AI character loop from the brainrot collection.
+    views: 209K views
+    published: 1 day ago
+    duration: 00:58
+    likes: 14K
+    thumbnail: {fileID: 21300000, guid: 39fafc7764a24fd4781f15454e57e8da, type: 3}
+    videoClip: {fileID: 32900000, guid: a910e88bda9eb694991a960fd32e604d, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1010000000000000000000000000001, type: 2}
+    contentEffect: 1
+    mockImageNumber: 1
+    mockColor: {r: 0.93, g: 0.31, b: 0.26, a: 1}
+  - id: video-02
+    title: Refrigerator Camels Downtown
+    channel: Rapid Loop
+    description: A surreal AI character loop from the brainrot collection.
+    views: 86K views
+    published: 3 days ago
+    duration: 00:30
+    likes: 8.6K
+    thumbnail: {fileID: 21300000, guid: 1b671a8ed6f989b4c9575b184183fffe, type: 3}
+    videoClip: {fileID: 32900000, guid: e12eeb417014a8243a93310c575468f6, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1020000000000000000000000000002, type: 2}
+    contentEffect: 1
+    mockImageNumber: 2
+    mockColor: {r: 0.18, g: 0.48, b: 0.91, a: 1}
+  - id: video-03
+    title: Banana Monkeys in the Jungle
+    channel: Rapid Loop
+    description: A short surreal AI loop from the brainrot collection.
+    views: 52K views
+    published: 1 week ago
+    duration: 00:05
+    likes: 5.2K
+    thumbnail: {fileID: 21300000, guid: e9231dd543a11ac4488f9eca87a192ac, type: 3}
+    videoClip: {fileID: 32900000, guid: b2813d089d8124947b92a6d8c8c9df03, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1030000000000000000000000000003, type: 2}
+    contentEffect: 1
+    mockImageNumber: 3
+    mockColor: {r: 0.96, g: 0.62, b: 0.12, a: 1}
+  - id: video-04
+    title: The Forest Family Mystery
+    channel: Rapid Loop
+    description: A strange AI forest loop from the brainrot collection.
+    views: 31K views
+    published: 2 weeks ago
+    duration: 00:53
+    likes: 3.1K
+    thumbnail: {fileID: 21300000, guid: 6b6cb28762ddc37478bc093814d135aa, type: 3}
+    videoClip: {fileID: 32900000, guid: 810bffa23d1a9d14c957178e9e94d6b8, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1040000000000000000000000000004, type: 2}
+    contentEffect: 1
+    mockImageNumber: 4
+    mockColor: {r: 0.12, g: 0.68, b: 0.47, a: 1}
+  - id: video-05
+    title: Ninja Coffee Cups at Midnight
+    channel: Rapid Loop
+    description: A fast AI action loop from the brainrot collection.
+    views: 440K views
+    published: 2 days ago
+    duration: 00:40
+    likes: 32K
+    thumbnail: {fileID: 21300000, guid: 8c334bf48e759dd4c87020984dd7c177, type: 3}
+    videoClip: {fileID: 32900000, guid: 33231bdcadd57e24d9227fbf28ff0636, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1050000000000000000000000000005, type: 2}
+    contentEffect: 1
+    mockImageNumber: 5
+    mockColor: {r: 0.55, g: 0.34, b: 0.88, a: 1}
+  - id: video-06
+    title: Sausage Family Night Adventure
+    channel: Rapid Loop
+    description: A surreal AI character loop from the brainrot collection.
+    views: 74K views
+    published: 5 days ago
+    duration: 00:35
+    likes: 7.4K
+    thumbnail: {fileID: 21300000, guid: 88f0415d95c62014594526b3e377b8f1, type: 3}
+    videoClip: {fileID: 32900000, guid: bfab2f813fdf93546b7562d8cc7f3d26, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1060000000000000000000000000006, type: 2}
+    contentEffect: 1
+    mockImageNumber: 6
+    mockColor: {r: 0.09, g: 0.67, b: 0.76, a: 1}
+  - id: video-07
+    title: Ghost in the Abandoned Hallway
+    channel: Midnight Signal
+    description: A sudden horror clip from a dark abandoned building.
+    views: 128K views
+    published: 6 days ago
+    duration: 00:05
+    likes: 11K
+    thumbnail: {fileID: 21300000, guid: 8b2b6b8cd907c5e4187b2c93495faa40, type: 3}
+    videoClip: {fileID: 32900000, guid: c911943dde1d2c343ae39e36e47741b2, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1070000000000000000000000000007, type: 2}
+    contentEffect: 2
+    mockImageNumber: 1
+    mockColor: {r: 0.16, g: 0.19, b: 0.25, a: 1}
+  - id: video-08
+    title: The Little Monster Appears
+    channel: Midnight Signal
+    description: A short creature scare from the horror collection.
+    views: 96K views
+    published: 1 week ago
+    duration: 00:05
+    likes: 9.6K
+    thumbnail: {fileID: 21300000, guid: 937f4f5afc9eb44499b4f4567d0f95c3, type: 3}
+    videoClip: {fileID: 32900000, guid: 7cb7116affe95ac469da77233159fb20, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1080000000000000000000000000008, type: 2}
+    contentEffect: 2
+    mockImageNumber: 2
+    mockColor: {r: 0.94, g: 0.38, b: 0.61, a: 1}
+  - id: video-09
+    title: A Quiet Christmas Drawing Night
+    channel: Cozy Window
+    description: A calm animated winter scene for relaxing and drawing.
+    views: 61K views
+    published: 8 days ago
+    duration: 00:11
+    likes: 6.1K
+    thumbnail: {fileID: 21300000, guid: 679e14f8510eeaf41b24a87b56ad36fa, type: 3}
+    videoClip: {fileID: 32900000, guid: af4b44b9b4cfdaf458636150175dccbc, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1090000000000000000000000000009, type: 2}
+    contentEffect: 0
+    mockImageNumber: 3
+    mockColor: {r: 0.72, g: 0.45, b: 0.21, a: 1}
+  - id: video-10
+    title: Peaceful Day at the Beach
+    channel: Cozy Window
+    description: A simple sunny beach animation for a calm break.
+    views: 301K views
+    published: 9 days ago
+    duration: 00:04
+    likes: 24K
+    thumbnail: {fileID: 21300000, guid: 4d3fb521c47e5214cbce0b176509ff10, type: 3}
+    videoClip: {fileID: 32900000, guid: e4fda61038a483040bf3e70f1f598a8b, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1100000000000000000000000000010, type: 2}
+    contentEffect: 0
+    mockImageNumber: 4
+    mockColor: {r: 0.24, g: 0.55, b: 0.34, a: 1}
+  - id: video-11
+    title: Reindeer Across the Snowy Sky
+    channel: Cozy Window
+    description: A cheerful winter animation with flying reindeer.
+    views: 510K views
+    published: 2 weeks ago
+    duration: 00:08
+    likes: 41K
+    thumbnail: {fileID: 21300000, guid: 2d0d98c962fffb04e8d6313a92ec20b4, type: 3}
+    videoClip: {fileID: 32900000, guid: 19283516614579246a4563feefb00052, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1110000000000000000000000000011, type: 2}
+    contentEffect: 0
+    mockImageNumber: 5
+    mockColor: {r: 0.19, g: 0.44, b: 0.74, a: 1}
+  - id: video-12
+    title: Happy Puppy Mountain Run
+    channel: Cozy Window
+    description: A cheerful cartoon puppy running through the mountains.
+    views: 47K views
+    published: 3 weeks ago
+    duration: 00:05
+    likes: 4.7K
+    thumbnail: {fileID: 21300000, guid: 08eec03d2fbfc484e811a0c7e1ba9d62, type: 3}
+    videoClip: {fileID: 32900000, guid: 59a174ecc1b610c4eaa211c79f5fe10a, type: 3}
+    outputTexture: {fileID: 8400000, guid: d1120000000000000000000000000012, type: 2}
+    contentEffect: 0
+    mockImageNumber: 6
+    mockColor: {r: 0.35, g: 0.67, b: 0.25, a: 1}

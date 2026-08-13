@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using GreekProject.Content;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -15,6 +16,7 @@ public class KidFocusCameraController : MonoBehaviour
         public Transform kidRoot;
         public Transform focusPoint;
         public Outline outline;
+        public KidWaypointAnimationTester activityController;
 
         public bool IsValid => kidRoot != null && focusPoint != null;
     }
@@ -26,18 +28,10 @@ public class KidFocusCameraController : MonoBehaviour
 
     [Header("Kids")]
     [SerializeField] private List<KidFocusTarget> kids = new List<KidFocusTarget>();
-    [SerializeField] private bool autoDiscoverKids = true;
-    [SerializeField] private string focusPointTag = "focus";
 
     [Header("Selection")]
     [SerializeField, Min(1f)] private float screenSelectionRadius = 140f;
     [SerializeField] private bool ignoreClicksOverUi = true;
-
-    [Header("Hover Outline")]
-    [SerializeField] private bool addMissingOutline = true;
-    [SerializeField] private Outline.Mode defaultOutlineMode = Outline.Mode.OutlineAll;
-    [SerializeField] private Color defaultOutlineColor = new Color(0.84f, 1f, 0.02f, 1f);
-    [SerializeField, Range(0f, 10f)] private float defaultOutlineWidth = 2f;
 
     [Header("Focus Orbit")]
     [SerializeField, Min(0.1f)] private float focusDistance = 1.35f;
@@ -57,14 +51,16 @@ public class KidFocusCameraController : MonoBehaviour
 
     [Header("Camera Collision")]
     [SerializeField] private Transform wallRoot;
-    [SerializeField] private string wallLayerName = "CameraCollision";
     [SerializeField] private LayerMask cameraCollisionMask = 1 << 6;
     [SerializeField, Min(0.01f)] private float cameraCollisionRadius = 0.12f;
     [SerializeField, Min(0f)] private float cameraWallPadding = 0.05f;
-    [SerializeField] private bool assignWallCollidersToLayer = true;
+    [SerializeField] private bool assignWallCollidersToLayer;
 
     [Header("Focus Phone Screen")]
     [SerializeField] private Transform phoneScreen;
+    [SerializeField] private bool lockFocusWhilePhoneVisible = true;
+    [SerializeField] private bool pauseKidActivityWhilePhoneVisible = true;
+    [SerializeField, Min(0f)] private float phoneChatOcclusionPadding = 8f;
     [SerializeField] private float phoneHiddenLocalY = -1f;
     [SerializeField] private float phoneShownLocalY = 0f;
     [SerializeField, Min(0f)] private float phoneSlideSmoothTime = 0.25f;
@@ -90,25 +86,53 @@ public class KidFocusCameraController : MonoBehaviour
     public bool IsFocusing => selectedKid != null;
     public bool IsPhoneScreenVisible => isPhoneScreenVisible;
 
+    public void RegisterViewedVideo(VideoContentEffect effect)
+    {
+        selectedKid?.activityController?.ApplyViewedVideoEffect(effect);
+    }
+
     private void Awake()
     {
-        ResolveReferences();
-
-        if (autoDiscoverKids)
-        {
-            DiscoverKids();
-        }
-
-        ResolveFocusPoints();
         PrepareOutlines();
         PrepareCameraCollision();
         InitializeCameraState();
         InitializePhoneScreen();
-        ShowOverview();
+    }
+
+    public void ConfigureSceneReferences(
+        Camera overview,
+        Camera focus,
+        Transform phone,
+        ChatUIFollowController chatController)
+    {
+        overviewCamera = overview;
+        focusCamera = focus;
+        phoneScreen = phone;
+        chatUiController = chatController;
     }
 
     private void Update()
     {
+        bool phoneHasFocusLock = lockFocusWhilePhoneVisible && isPhoneScreenVisible;
+        if (phoneHasFocusLock)
+        {
+            SetHoveredKid(null);
+
+            if ((Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame))
+            {
+                SetPhoneScreenVisible(false);
+                return;
+            }
+
+            if (WasPhoneTogglePressed())
+            {
+                SetPhoneScreenVisible(false);
+            }
+
+            return;
+        }
+
         UpdateHoveredKid();
 
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -123,9 +147,10 @@ public class KidFocusCameraController : MonoBehaviour
             return;
         }
 
-        if (IsFocusing && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+        if (IsFocusing && WasPhoneTogglePressed())
         {
             SetPhoneScreenVisible(!isPhoneScreenVisible);
+            return;
         }
 
         if (Pointer.current == null || !Pointer.current.press.wasPressedThisFrame)
@@ -142,6 +167,17 @@ public class KidFocusCameraController : MonoBehaviour
 
         TryFocusAtScreenPosition(Pointer.current.position.ReadValue());
         UpdateCameraInput();
+    }
+
+    private bool WasPhoneTogglePressed()
+    {
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null)
+        {
+            return false;
+        }
+
+        return keyboard.spaceKey.wasPressedThisFrame;
     }
 
     private void LateUpdate()
@@ -180,6 +216,11 @@ public class KidFocusCameraController : MonoBehaviour
 
     public bool FocusKid(string kidId)
     {
+        if (lockFocusWhilePhoneVisible && isPhoneScreenVisible)
+        {
+            return false;
+        }
+
         foreach (KidFocusTarget kid in kids)
         {
             if (kid != null && kid.IsValid && string.Equals(kid.kidId, kidId, StringComparison.OrdinalIgnoreCase))
@@ -194,6 +235,11 @@ public class KidFocusCameraController : MonoBehaviour
 
     public void ShowOverview()
     {
+        if (lockFocusWhilePhoneVisible && isPhoneScreenVisible)
+        {
+            return;
+        }
+
         selectedKid = null;
         followVelocity = Vector3.zero;
         SetPhoneScreenVisible(false);
@@ -286,6 +332,11 @@ public class KidFocusCameraController : MonoBehaviour
 
     private void FocusKid(KidFocusTarget kid)
     {
+        if (lockFocusWhilePhoneVisible && isPhoneScreenVisible)
+        {
+            return;
+        }
+
         bool isChangingFocus = selectedKid != kid;
         selectedKid = kid;
         followVelocity = Vector3.zero;
@@ -584,69 +635,6 @@ public class KidFocusCameraController : MonoBehaviour
         return desiredPosition;
     }
 
-    private void ResolveReferences()
-    {
-        if (overviewCamera == null)
-        {
-            overviewCamera = ChatUiAnchorUtility.FindCameraByName("Main_room");
-        }
-
-        if (focusCamera == null)
-        {
-            focusCamera = ChatUiAnchorUtility.FindCameraByName("Kid_Forcus");
-        }
-
-        if (chatUiController == null)
-        {
-            chatUiController = FindFirstObjectByType<ChatUIFollowController>();
-        }
-    }
-
-    private void DiscoverKids()
-    {
-        if (chatUiController == null)
-        {
-            return;
-        }
-
-        foreach (ChatUIFollowController.KidChatBinding chatKid in chatUiController.Kids)
-        {
-            if (chatKid == null || chatKid.kidRoot == null || ContainsKid(chatKid.kidRoot))
-            {
-                continue;
-            }
-
-            kids.Add(new KidFocusTarget
-            {
-                kidId = chatKid.kidId,
-                kidRoot = chatKid.kidRoot,
-                focusPoint = FindFocusPoint(chatKid.kidRoot),
-                outline = chatKid.kidRoot.GetComponent<Outline>()
-            });
-        }
-    }
-
-    private void ResolveFocusPoints()
-    {
-        foreach (KidFocusTarget kid in kids)
-        {
-            if (kid == null || kid.kidRoot == null)
-            {
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(kid.kidId))
-            {
-                kid.kidId = kid.kidRoot.name;
-            }
-
-            if (kid.focusPoint == null)
-            {
-                kid.focusPoint = FindFocusPoint(kid.kidRoot);
-            }
-        }
-    }
-
     private void PrepareOutlines()
     {
         foreach (KidFocusTarget kid in kids)
@@ -654,19 +642,6 @@ public class KidFocusCameraController : MonoBehaviour
             if (kid == null || kid.kidRoot == null)
             {
                 continue;
-            }
-
-            if (kid.outline == null)
-            {
-                kid.outline = kid.kidRoot.GetComponent<Outline>();
-            }
-
-            if (kid.outline == null && addMissingOutline)
-            {
-                kid.outline = kid.kidRoot.gameObject.AddComponent<Outline>();
-                kid.outline.OutlineMode = defaultOutlineMode;
-                kid.outline.OutlineColor = defaultOutlineColor;
-                kid.outline.OutlineWidth = defaultOutlineWidth;
             }
 
             if (kid.outline != null)
@@ -689,33 +664,6 @@ public class KidFocusCameraController : MonoBehaviour
         }
     }
 
-    private Transform FindFocusPoint(Transform kidRoot)
-    {
-        foreach (Transform child in kidRoot.GetComponentsInChildren<Transform>(true))
-        {
-            if ((!string.IsNullOrWhiteSpace(focusPointTag) && child.CompareTag(focusPointTag)) ||
-                string.Equals(child.name, "focus_point", StringComparison.OrdinalIgnoreCase))
-            {
-                return child;
-            }
-        }
-
-        return null;
-    }
-
-    private bool ContainsKid(Transform kidRoot)
-    {
-        foreach (KidFocusTarget kid in kids)
-        {
-            if (kid != null && kid.kidRoot == kidRoot)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private void InitializeCameraState()
     {
         orbitPitch = Mathf.Clamp(defaultOrbitPitch, orbitPitchLimits.x, orbitPitchLimits.y);
@@ -733,26 +681,22 @@ public class KidFocusCameraController : MonoBehaviour
 
     private void PrepareCameraCollision()
     {
-        if (wallRoot == null)
-        {
-            GameObject wallObject = ChatUiAnchorUtility.FindLoadedSceneObject("Walls_01");
-            if (wallObject != null)
-            {
-                wallRoot = wallObject.transform;
-            }
-        }
-
-        int wallLayer = LayerMask.NameToLayer(wallLayerName);
-        if (wallLayer < 0)
-        {
-            Debug.LogWarning($"Camera collision layer '{wallLayerName}' does not exist.", this);
-            return;
-        }
-
-        cameraCollisionMask = 1 << wallLayer;
         if (!assignWallCollidersToLayer || wallRoot == null)
         {
             return;
+        }
+
+        int mask = cameraCollisionMask.value;
+        if (mask == 0 || (mask & (mask - 1)) != 0)
+        {
+            Debug.LogWarning("Camera Collision Mask must contain exactly one layer when Assign Wall Colliders To Layer is enabled.", this);
+            return;
+        }
+
+        int wallLayer = 0;
+        while ((mask >>= 1) != 0)
+        {
+            wallLayer++;
         }
 
         foreach (Collider wallCollider in wallRoot.GetComponentsInChildren<Collider>(true))
@@ -763,33 +707,55 @@ public class KidFocusCameraController : MonoBehaviour
 
     private void InitializePhoneScreen()
     {
-        if (phoneScreen == null && focusCamera != null)
-        {
-            foreach (Transform child in focusCamera.GetComponentsInChildren<Transform>(true))
-            {
-                if (string.Equals(child.name, "PhoneScreen", StringComparison.OrdinalIgnoreCase))
-                {
-                    phoneScreen = child;
-                    break;
-                }
-            }
-        }
-
         phoneTargetLocalY = phoneHiddenLocalY;
         isPhoneScreenVisible = false;
 
         if (phoneScreen != null)
         {
+            Canvas phoneCanvas = phoneScreen.GetComponent<Canvas>();
+            if (phoneCanvas != null && focusCamera != null)
+            {
+                phoneCanvas.worldCamera = focusCamera;
+            }
+
             Vector3 localPosition = phoneScreen.localPosition;
-            localPosition.y = phoneHiddenLocalY;
+            localPosition.y = phoneTargetLocalY;
             phoneScreen.localPosition = localPosition;
+
+            RectTransform phoneOccluder = phoneScreen.Find("ScreenMask") as RectTransform;
+            if (phoneOccluder == null)
+            {
+                phoneOccluder = phoneScreen as RectTransform;
+            }
+            if (chatUiController != null && phoneOccluder != null)
+            {
+                foreach (ChatUIFollowController.ChatSlot chat in chatUiController.Chats)
+                {
+                    ChatUiAnchorFollower follower = chat?.chatRoot != null
+                        ? chat.chatRoot.GetComponent<ChatUiAnchorFollower>()
+                        : null;
+                    follower?.SetScreenOccluder(phoneOccluder, phoneChatOcclusionPadding);
+                }
+            }
         }
+
     }
 
     public void SetPhoneScreenVisible(bool isVisible)
     {
-        isPhoneScreenVisible = isVisible && IsFocusing;
-        phoneTargetLocalY = isPhoneScreenVisible ? phoneShownLocalY : phoneHiddenLocalY;
+        bool nextVisibleState = isVisible && IsFocusing;
+        if (isPhoneScreenVisible != nextVisibleState &&
+            pauseKidActivityWhilePhoneVisible &&
+            selectedKid != null &&
+            selectedKid.activityController != null)
+        {
+            selectedKid.activityController.SetPausedForPhone(nextVisibleState);
+        }
+
+        isPhoneScreenVisible = nextVisibleState;
+        phoneTargetLocalY = isPhoneScreenVisible
+            ? phoneShownLocalY
+            : phoneHiddenLocalY;
         phoneSlideVelocity = 0f;
     }
 

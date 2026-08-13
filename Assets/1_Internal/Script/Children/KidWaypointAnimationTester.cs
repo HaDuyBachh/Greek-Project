@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using GreekProject.Content;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -8,6 +9,14 @@ using UnityEngine.AI;
 [RequireComponent(typeof(Animator), typeof(NavMeshAgent))]
 public class KidWaypointAnimationTester : MonoBehaviour
 {
+    public enum EmotionState
+    {
+        Stable,
+        Happy,
+        Anxious,
+        Panic
+    }
+
     private const string WalkPlaceLabel = "walk_place";
     private const string SitGroundLabel = "sit_ground";
     private const string EnterSofaLabel = "enter_sofa";
@@ -18,12 +27,19 @@ public class KidWaypointAnimationTester : MonoBehaviour
     [SerializeField] private WaypointGroup waypointGroup;
     [SerializeField] private Animator animator;
     [SerializeField] private NavMeshAgent agent;
+    [SerializeField] private bool startOnPlay = true;
 
     [Header("Timing")]
     [SerializeField, Min(0.1f)] private float minActionDuration = 3f;
     [SerializeField, Min(0.1f)] private float maxActionDuration = 7f;
     [SerializeField, Min(1f)] private float travelTimeout = 20f;
     [SerializeField, Min(0f)] private float animationBlendTime = 0.2f;
+
+    [Header("Video Emotion")]
+    [SerializeField, Min(1)] private int brainrotViewsBeforeAnxiety = 3;
+    [SerializeField, Range(0f, 1f)] private float normalVideoHappyChance = 0.5f;
+    [SerializeField] private EmotionState currentEmotion = EmotionState.Stable;
+    [SerializeField, Min(0)] private int brainrotExposure;
 
     [Header("Movement Animations")]
     [SerializeField] private string[] locomotionAnimations = { "Walking", "RunForward" };
@@ -83,13 +99,14 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private Coroutine testRoutine;
     private LabeledWaypoint previousActivityWaypoint;
     private LabeledWaypoint currentChairSeat;
+    private bool phonePauseRequested;
+    private bool isTravelling;
+    private bool emotionChangedWhilePhoneOpen;
 
-    private void Reset()
-    {
-        animator = GetComponent<Animator>();
-        agent = GetComponent<NavMeshAgent>();
-        waypointGroup = FindFirstObjectByType<WaypointGroup>();
-    }
+    public bool IsPausedForPhone => phonePauseRequested;
+    public bool IsTravelling => isTravelling;
+    public EmotionState CurrentEmotion => currentEmotion;
+    public int BrainrotExposure => brainrotExposure;
 
     private void Awake()
     {
@@ -104,7 +121,10 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
     private void Start()
     {
-        StartTesting();
+        if (startOnPlay)
+        {
+            StartTesting();
+        }
     }
 
     private void OnDisable()
@@ -139,6 +159,62 @@ public class KidWaypointAnimationTester : MonoBehaviour
         {
             StopCoroutine(testRoutine);
             testRoutine = null;
+        }
+
+        isTravelling = false;
+    }
+
+    public void SetPausedForPhone(bool shouldPause)
+    {
+        phonePauseRequested = shouldPause;
+
+        if (!shouldPause && emotionChangedWhilePhoneOpen && !isTravelling)
+        {
+            emotionChangedWhilePhoneOpen = false;
+            PlayCurrentEmotionAnimation();
+        }
+    }
+
+    public void ApplyViewedVideoEffect(VideoContentEffect effect)
+    {
+        switch (effect)
+        {
+            case VideoContentEffect.Horror:
+                currentEmotion = EmotionState.Panic;
+                break;
+
+            case VideoContentEffect.Brainrot:
+                brainrotExposure++;
+                if (currentEmotion != EmotionState.Panic && brainrotExposure >= brainrotViewsBeforeAnxiety)
+                {
+                    currentEmotion = EmotionState.Anxious;
+                }
+                break;
+
+            default:
+                brainrotExposure = Mathf.Max(0, brainrotExposure - 1);
+                currentEmotion = UnityEngine.Random.value < normalVideoHappyChance
+                    ? EmotionState.Happy
+                    : EmotionState.Stable;
+                break;
+        }
+
+        emotionChangedWhilePhoneOpen |= phonePauseRequested;
+    }
+
+    private void PlayCurrentEmotionAnimation()
+    {
+        if (currentChairSeat != null)
+        {
+            PlayAnimation(PickChairAnimation());
+        }
+        else if (previousActivityWaypoint != null && HasLabel(previousActivityWaypoint, SitGroundLabel))
+        {
+            PlayAnimation(PickGroundAnimation());
+        }
+        else
+        {
+            PlayAnimation(PickStandingAnimation());
         }
     }
 
@@ -183,6 +259,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
     {
         while (enabled)
         {
+            yield return WaitWhilePhonePaused();
+
             LabeledWaypoint target = PickActivityWaypoint();
             if (target == null)
             {
@@ -197,15 +275,23 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
             if (!TrySetDestination(target.Position))
             {
+                isTravelling = false;
                 Debug.LogWarning($"{name}: Cannot find NavMesh near waypoint {target.name} ({target.Label}).", target);
                 yield return null;
                 continue;
             }
 
+            isTravelling = true;
             yield return WaitForArrival(target);
+            isTravelling = false;
 
             if (!agent.enabled || !agent.isOnNavMesh || agent.pathPending || agent.remainingDistance > GetArrivalDistance(target) + 0.1f)
             {
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.isStopped = true;
+                }
+
                 Debug.LogWarning($"{name}: Timed out while travelling to {target.name} ({target.Label}).", target);
                 continue;
             }
@@ -221,18 +307,42 @@ public class KidWaypointAnimationTester : MonoBehaviour
             else if (HasLabel(target, SitGroundLabel))
             {
                 LockToWaypoint(target);
-                PlayAnimation(PickValidAnimation(neutralGroundAnimations, "SitGround"));
+                PlayAnimation(PickGroundAnimation());
             }
             else
             {
                 transform.rotation = target.transform.rotation;
-                PlayAnimation(PickValidAnimation(neutralStandingAnimations, "Breathing Idle"));
+                PlayAnimation(PickStandingAnimation());
             }
 
-            yield return new WaitForSeconds(UnityEngine.Random.Range(minActionDuration, maxActionDuration));
+            emotionChangedWhilePhoneOpen = false;
+
+            yield return WaitForActionDuration(UnityEngine.Random.Range(minActionDuration, maxActionDuration));
         }
 
         testRoutine = null;
+    }
+
+    private IEnumerator WaitWhilePhonePaused()
+    {
+        while (phonePauseRequested)
+        {
+            yield return null;
+        }
+    }
+
+    private IEnumerator WaitForActionDuration(float duration)
+    {
+        float remaining = duration;
+        while (remaining > 0f)
+        {
+            if (!phonePauseRequested)
+            {
+                remaining -= Time.deltaTime;
+            }
+
+            yield return null;
+        }
     }
 
     private void PrepareToTravel()
@@ -312,14 +422,50 @@ public class KidWaypointAnimationTester : MonoBehaviour
         if (chair == null)
         {
             Debug.LogWarning($"{name}: No sit_chair waypoint was found for {entrance.name}.", entrance);
-            PlayAnimation(PickValidAnimation(neutralStandingAnimations, "Breathing Idle"));
+            PlayAnimation(PickStandingAnimation());
             return;
         }
 
         currentChairSeat = chair;
         LockToWaypoint(chair);
         chair.Arrive(gameObject);
-        PlayAnimation(PickValidAnimation(neutralChairAnimations, "SitChairIdle"));
+        PlayAnimation(PickChairAnimation());
+    }
+
+    private string PickStandingAnimation()
+    {
+        if (currentEmotion == EmotionState.Panic)
+        {
+            return HasAnimation("Panic") ? "Panic" : PickValidAnimation(emotionalStandingAnimations, "Panic");
+        }
+
+        return currentEmotion == EmotionState.Anxious
+            ? PickValidAnimation(emotionalStandingAnimations, "AngryStandNormal")
+            : PickValidAnimation(neutralStandingAnimations, "Breathing Idle");
+    }
+
+    private string PickGroundAnimation()
+    {
+        if (currentEmotion == EmotionState.Panic)
+        {
+            return HasAnimation("GroundPain") ? "GroundPain" : PickValidAnimation(emotionalGroundAnimations, "GroundPain");
+        }
+
+        return currentEmotion == EmotionState.Anxious
+            ? PickValidAnimation(emotionalGroundAnimations, "GroundPain")
+            : PickValidAnimation(neutralGroundAnimations, "SitGround");
+    }
+
+    private string PickChairAnimation()
+    {
+        if (currentEmotion == EmotionState.Panic)
+        {
+            return HasAnimation("SitChairFear") ? "SitChairFear" : PickValidAnimation(emotionalChairAnimations, "SitChairFear");
+        }
+
+        return currentEmotion == EmotionState.Anxious
+            ? PickValidAnimation(emotionalChairAnimations, "SitChairFear")
+            : PickValidAnimation(neutralChairAnimations, "SitChairIdle");
     }
 
     private void LockToWaypoint(LabeledWaypoint waypoint)
@@ -411,10 +557,6 @@ public class KidWaypointAnimationTester : MonoBehaviour
             agent = GetComponent<NavMeshAgent>();
         }
 
-        if (waypointGroup == null)
-        {
-            waypointGroup = FindFirstObjectByType<WaypointGroup>();
-        }
     }
 
     private static bool HasLabel(LabeledWaypoint waypoint, string label)
@@ -453,5 +595,6 @@ public class KidWaypointAnimationTester : MonoBehaviour
         animationBlendTime = Mathf.Max(0f, animationBlendTime);
         walkSpeed = Mathf.Max(0.1f, walkSpeed);
         runSpeed = Mathf.Max(walkSpeed, runSpeed);
+        brainrotViewsBeforeAnxiety = Mathf.Max(1, brainrotViewsBeforeAnxiety);
     }
 }
