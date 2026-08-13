@@ -86,15 +86,26 @@ Danh sach dung mock number `01-06` lap lai cho 12 card. Khi click card,
 lam khung video tam, title, metadata, channel va nut `< Back` co dinh o day.
 Nut Back dong player va tra ve dung danh sach dang scroll.
 
-### GIF source va playback
+### GIF source va image-sequence playback
 
-- GIF goc duoc giu trong `Data/Video_Raw`.
-- `Data/Video_Processed` chua PNG frame dau dung lam thumbnail va MP4 duoc
-  chuyen truc tiep tu GIF 10 FPS de Unity phat nhe va on dinh.
-- Player dung `VideoPlayer` + `RenderTexture`; nut giua chuyen giua `>` va
-  `II`, thanh progress co the keo de seek.
+- Video goc duoc giu trong `Data/Video_Raw`.
+- `Data/Video_Processed` chua PNG frame dau dung lam thumbnail va MP4 10 FPS.
+- Runtime khong dung `VideoPlayer`. Moi MP4 duoc tach thanh sprite sheet 8x8,
+  moi frame 256x144, luu trong `Assets/1_Internal/Resources/VideoFrames`.
+- `manifest.json` luu so frame; player doi `RawImage.texture` va `uvRect` o
+  10 FPS. Tat ca sheet duoc load trong `Awake`, truoc khi nguoi choi chon Kid.
+- Nut giua chuyen giua `>` va `II`; thanh progress co the keo de seek.
 - Keo progress khong duoc tinh la da xem. Chi thoi gian clip thuc su dang Play
   va dat 80% duration moi ap dung effect mot lan.
+
+De tao lai sheet cho video hien tai va video moi:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Tools/Generate-VideoFrameSheets.ps1
+```
+
+Script doc tat ca MP4 trong `Data/Video_Processed`, tao lai JPG sheet va cap
+nhat `manifest.json`. Ten MP4 phai trung voi stem do `GetVideoStem` tra ve.
 
 ### Tac dong cam xuc
 

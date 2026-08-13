@@ -45,6 +45,19 @@ namespace GreekProject.UI
             public float Duration => FrameCount / SequenceFramesPerSecond;
         }
 
+        [System.Serializable]
+        private sealed class FrameSequenceManifest
+        {
+            public FrameSequenceManifestEntry[] videos;
+        }
+
+        [System.Serializable]
+        private sealed class FrameSequenceManifestEntry
+        {
+            public string stem;
+            public int frameCount;
+        }
+
         private RectTransform viewerRoot;
         private Image viewerThumbnail;
         private TextMeshProUGUI viewerMockNumber;
@@ -612,6 +625,7 @@ namespace GreekProject.UI
 
         private void LoadFrameSequences()
         {
+            Dictionary<string, int> frameCounts = LoadSequenceFrameCounts();
             foreach (VideoLibraryData.VideoEntry video in videoLibrary.Videos)
             {
                 if (video == null)
@@ -622,7 +636,7 @@ namespace GreekProject.UI
                 string stem = GetVideoStem(video);
                 Texture2D[] sheets = Resources.LoadAll<Texture2D>($"VideoFrames/{stem}");
                 System.Array.Sort(sheets, (left, right) => string.CompareOrdinal(left.name, right.name));
-                int frameCount = GetSequenceFrameCount(stem);
+                frameCounts.TryGetValue(stem, out int frameCount);
                 if (sheets.Length == 0 || frameCount <= 0)
                 {
                     Debug.LogError($"Frame sequence for '{video.id}' was not found in Resources/VideoFrames/{stem}.", this);
@@ -639,24 +653,32 @@ namespace GreekProject.UI
             Debug.Log($"Loaded {frameSequences.Count} phone image sequences before interaction.", this);
         }
 
-        private static int GetSequenceFrameCount(string stem)
+        private Dictionary<string, int> LoadSequenceFrameCounts()
         {
-            return stem switch
+            Dictionary<string, int> frameCounts = new Dictionary<string, int>();
+            TextAsset manifestAsset = Resources.Load<TextAsset>("VideoFrames/manifest");
+            if (manifestAsset == null)
             {
-                "bainrot02" => 584,
-                "bainrot06" => 301,
-                "brainrot01" => 50,
-                "brainrot03" => 527,
-                "brainrot04" => 396,
-                "brainrot05" => 351,
-                "horror01" => 50,
-                "horror02" => 50,
-                "normal01" => 108,
-                "normal02" => 40,
-                "normal04" => 82,
-                "normal05" => 50,
-                _ => 0
-            };
+                Debug.LogError("Resources/VideoFrames/manifest.json was not found.", this);
+                return frameCounts;
+            }
+
+            FrameSequenceManifest manifest = JsonUtility.FromJson<FrameSequenceManifest>(manifestAsset.text);
+            if (manifest?.videos == null)
+            {
+                Debug.LogError("VideoFrames/manifest.json is invalid.", this);
+                return frameCounts;
+            }
+
+            foreach (FrameSequenceManifestEntry entry in manifest.videos)
+            {
+                if (entry != null && !string.IsNullOrWhiteSpace(entry.stem) && entry.frameCount > 0)
+                {
+                    frameCounts[entry.stem] = entry.frameCount;
+                }
+            }
+
+            return frameCounts;
         }
 
         private void LayoutViewerDetails()

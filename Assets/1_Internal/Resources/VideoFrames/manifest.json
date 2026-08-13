@@ -1,0 +1,52 @@
+{
+    "videos":  [
+                   {
+                       "stem":  "bainrot02",
+                       "frameCount":  584
+                   },
+                   {
+                       "stem":  "bainrot06",
+                       "frameCount":  301
+                   },
+                   {
+                       "stem":  "brainrot01",
+                       "frameCount":  50
+                   },
+                   {
+                       "stem":  "brainrot03",
+                       "frameCount":  527
+                   },
+                   {
+                       "stem":  "brainrot04",
+                       "frameCount":  396
+                   },
+                   {
+                       "stem":  "brainrot05",
+                       "frameCount":  351
+                   },
+                   {
+                       "stem":  "horror01",
+                       "frameCount":  50
+                   },
+                   {
+                       "stem":  "horror02",
+                       "frameCount":  50
+                   },
+                   {
+                       "stem":  "normal01",
+                       "frameCount":  108
+                   },
+                   {
+                       "stem":  "normal02",
+                       "frameCount":  40
+                   },
+                   {
+                       "stem":  "normal04",
+                       "frameCount":  82
+                   },
+                   {
+                       "stem":  "normal05",
+                       "frameCount":  50
+                   }
+               ]
+}
