@@ -65,6 +65,9 @@ VideoFeedTemplate
 
 - Text su dung TextMeshPro.
 - `VideoScroll` dung `ScrollRect` theo chieu doc.
+- Moi khi `PhoneView` mo hoac dong, `VideoScroll` dung movement hien tai va quay
+  ve card dau tien. Co the tat bang `Reset Scroll On Phone Visibility Changed`
+  tren Inspector cua `PhoneVideoFeedUI`.
 - `PhoneInputBlocker` nhan raycast tren toan man hinh de click khong xuyen xuong
   scene.
 - Cac thong so card, thumbnail, spacing, avatar va font duoc expose tren
@@ -106,17 +109,18 @@ panel. Backdrop nam tren UI chinh nhung duoi panel, nhan raycast; click vao
 backdrop se dong menu ma khong dong video dang xem.
 
 `PhoneVideoFeedUI` luu card da mo menu trong `selectedVideoCard`. Neu chon
-`Don't recommend this video` tu card, card do bi `SetActive(false)` va
-`Content` duoc danh dau rebuild layout. Neu chon tu `VideoPlayerView`, viewer
-va video dang phat cung dong, sau do card tuong ung trong `VideoScroll/Content`
-bi an. Anh xa `VideoEntry -> RectTransform card` duoc tao lai moi khi runtime
-build danh sach, nen thao tac trong viewer khong dung ten hoac vi tri card de
-doan video.
+`Don't recommend this video`, card van giu nguyen vi tri va khong refill video
+moi. `NotRecommendedOverlay` phu len card voi ba text tieng Anh: `Video removed`,
+`Undo`, `Tell us why`. Hai hang `Undo` va `Tell us why` chi la rounded visual,
+khong co component `Button` hoac listener. Overlay dung light theme: nen trang,
+vien xam nhat, chu den va hai action mau xam sang. Neu chon tu `VideoPlayerView`, viewer
+va video dang phat dong, sau do overlay cua card tuong ung duoc bat.
 
 Video da chon `Don't recommend this video` duoc dua vao blacklist cua phien
-runtime, bi loai khoi card hien tai va khong duoc chon lai trong bat ky lan refill
-hoac refresh nao. Blacklist chua duoc luu vao save data. `Suggest more videos`
-hien chi dong menu, chua thay doi recommendation
+runtime. Card bi blacklist duoc giu lai voi overlay cho toi lan reset ke tiep.
+Khi reset, card cu va overlay bi loai, slot duoc refill
+bang video hop le khac; video da blacklist khong duoc chon lai lam recommendation.
+Blacklist chua duoc luu vao save data. `Suggest more videos` hien chi dong menu, chua thay doi recommendation
 weight. Khi them `RecommendationModel`, hai nut nay nen goi intervention API
 thay vi de `PhoneVideoFeedUI` tu quan ly persistence.
 
@@ -159,6 +163,10 @@ khi Play:
 - `Cycle Interval Seconds = 5`.
 - Moi chu ky thay ngau nhien `1-3` trong 6 video dang hien.
 - Video trong blacklist `Don't recommend` khong bao gio duoc chon lai.
+- Card da bi blacklist giu overlay `Video removed` cho toi chu ky reset ke tiep.
+  Reset loai toan bo card cu co overlay va refill slot bang video hop le khac.
+- Doc lap voi cac card bi blacklist, moi chu ky van thay ngau nhien them `1-3`
+  video binh thuong. Card co overlay khong tinh vao quota `1-3` nay.
 - Khi `Kid_Forcus` dang theo doi mot Kid, chu ky van dem nhung khong thay video.
   Sau khi quay lai `Main_room`, lan chu ky tiep theo moi refresh danh sach.
 - Moi chu ky muon `ChatUIFollowController` cho `Kid1`, hien mot emote ngau nhien

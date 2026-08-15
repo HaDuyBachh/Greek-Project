@@ -45,6 +45,19 @@ namespace GreekProject.UI
         [SerializeField, Tooltip("Do not rotate feed cards while Kid_Forcus is following a Kid.")]
         private bool pauseFeedRefreshWhileKidFocused = true;
 
+        [Header("Not Recommended Overlay")]
+        [SerializeField] private string videoRemovedText = "Video removed";
+        [SerializeField] private string fakeUndoText = "Undo";
+        [SerializeField] private string fakeReasonText = "Tell us why";
+        [SerializeField] private Color removedOverlayBorderColor = new Color(0.82f, 0.82f, 0.82f, 1f);
+        [SerializeField] private Color removedOverlayColor = Color.white;
+        [SerializeField] private Color removedFakeDarkActionColor = new Color(0.9f, 0.9f, 0.9f, 1f);
+        [SerializeField] private Color removedFakeLightActionColor = new Color(0.96f, 0.96f, 0.96f, 1f);
+
+        [Header("Phone View")]
+        [SerializeField, Tooltip("Return VideoScroll to the first card whenever PhoneView opens or closes.")]
+        private bool resetScrollOnPhoneVisibilityChanged = true;
+
         private sealed class FrameSequence
         {
             public Texture2D[] Sheets;
@@ -86,6 +99,7 @@ namespace GreekProject.UI
         private RectTransform videoOptionsBackdrop;
         private RectTransform videoOptionsPanel;
         private RectTransform videoContent;
+        private ScrollRect videoScroll;
         private RectTransform selectedVideoCard;
         private bool videoOptionsOpenedFromViewer;
         private VideoLibraryData.VideoEntry activeVideo;
@@ -93,6 +107,8 @@ namespace GreekProject.UI
         private bool effectAppliedForCurrentPlay;
         private bool playbackRequested;
         private bool runtimeLibraryInitialized;
+        private bool phoneVisibilityTracked;
+        private bool lastPhoneVisibility;
         private float sequenceTime;
         private float watchedPlaybackSeconds;
         private int displayedSequenceFrame = -1;
@@ -133,6 +149,8 @@ namespace GreekProject.UI
 
         private void Update()
         {
+            ResetScrollWhenPhoneVisibilityChanges();
+
             if (viewerRoot != null && viewerRoot.gameObject.activeSelf &&
                 kidFocusController != null && !kidFocusController.IsPhoneScreenVisible)
             {
@@ -446,6 +464,63 @@ namespace GreekProject.UI
             {
                 initial.text = video.channel.Substring(0, 1).ToUpperInvariant();
             }
+
+            RectTransform removedOverlay = BuildNotRecommendedOverlay(card);
+            bool isSuppressed = !string.IsNullOrWhiteSpace(video.id) && suppressedVideoIds.Contains(video.id);
+            SetCardSuppressedState(card, removedOverlay, isSuppressed);
+        }
+
+        private RectTransform BuildNotRecommendedOverlay(RectTransform card)
+        {
+            RectTransform border = CreateRoundedPanel("NotRecommendedOverlay", card, removedOverlayBorderColor,
+                new Vector2(horizontalInset, 0.04f), new Vector2(1f - horizontalInset, 0.96f), 0.035f);
+            RoundedRectGraphic borderGraphic = border.GetComponent<RoundedRectGraphic>();
+            borderGraphic.raycastTarget = true;
+
+            RectTransform surface = CreateRoundedPanel("Surface", border, removedOverlayColor,
+                new Vector2(0.006f, 0.01f), new Vector2(0.994f, 0.99f), 0.034f);
+            CreateText("Message", surface, videoRemovedText, TextColor, 0.008f,
+                TextAlignmentOptions.Center, new Vector2(0.06f, 0.64f), new Vector2(0.94f, 0.91f), FontStyles.Bold);
+
+            CreateFakeRemovedAction("FakeUndo", surface, fakeUndoText, removedFakeDarkActionColor, TextColor,
+                new Vector2(0.035f, 0.35f), new Vector2(0.965f, 0.55f));
+            CreateFakeRemovedAction("FakeReason", surface, fakeReasonText, removedFakeLightActionColor, TextColor,
+                new Vector2(0.035f, 0.075f), new Vector2(0.965f, 0.275f));
+
+            border.SetAsLastSibling();
+            border.gameObject.SetActive(false);
+            return border;
+        }
+
+        private static void CreateFakeRemovedAction(string name, RectTransform parent, string label,
+            Color backgroundColor, Color labelColor, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            RectTransform visual = CreateRoundedPanel(name, parent, backgroundColor, anchorMin, anchorMax, 0.5f);
+            CreateText("Label", visual, label, labelColor, 0.0068f, TextAlignmentOptions.Center,
+                Vector2.zero, Vector2.one, FontStyles.Bold);
+        }
+
+        private static void SetCardSuppressedState(RectTransform card, RectTransform overlay, bool isSuppressed)
+        {
+            if (card == null || overlay == null)
+            {
+                return;
+            }
+
+            overlay.gameObject.SetActive(isSuppressed);
+            overlay.SetAsLastSibling();
+
+            Button cardButton = card.GetComponent<Button>();
+            if (cardButton != null)
+            {
+                cardButton.interactable = !isSuppressed;
+            }
+
+            Button moreButton = card.Find("VideoInfo/More")?.GetComponent<Button>();
+            if (moreButton != null)
+            {
+                moreButton.interactable = !isSuppressed;
+            }
         }
 
         private void InitializeRuntimeLibrary()
@@ -467,6 +542,13 @@ namespace GreekProject.UI
 
             runtimeLibraryInitialized = true;
             videoContent = content;
+            videoScroll = template.Find("VideoScroll")?.GetComponent<ScrollRect>();
+            if (kidFocusController != null)
+            {
+                lastPhoneVisibility = kidFocusController.IsPhoneScreenVisible;
+                phoneVisibilityTracked = true;
+            }
+
             LoadUploaderAvatars();
             BindVideoOptionsPanel(template);
 
@@ -514,6 +596,58 @@ namespace GreekProject.UI
             {
                 viewerRoot.gameObject.SetActive(false);
             }
+        }
+
+        private void ResetScrollWhenPhoneVisibilityChanges()
+        {
+            if (kidFocusController == null)
+            {
+                return;
+            }
+
+            bool isPhoneVisible = kidFocusController.IsPhoneScreenVisible;
+            if (!phoneVisibilityTracked)
+            {
+                lastPhoneVisibility = isPhoneVisible;
+                phoneVisibilityTracked = true;
+                return;
+            }
+
+            if (lastPhoneVisibility == isPhoneVisible)
+            {
+                return;
+            }
+
+            lastPhoneVisibility = isPhoneVisible;
+            if (resetScrollOnPhoneVisibilityChanged)
+            {
+                ResetVideoScrollToTop();
+            }
+        }
+
+        [ContextMenu("Reset Video Scroll To Top")]
+        public void ResetVideoScrollToTop()
+        {
+            if (videoScroll == null)
+            {
+                Transform template = transform.Find(TemplateRootName);
+                videoScroll = template?.Find("VideoScroll")?.GetComponent<ScrollRect>();
+            }
+
+            if (videoScroll == null)
+            {
+                return;
+            }
+
+            if (videoContent != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(videoContent);
+            }
+
+            Canvas.ForceUpdateCanvases();
+            videoScroll.StopMovement();
+            videoScroll.velocity = Vector2.zero;
+            videoScroll.verticalNormalizedPosition = 1f;
         }
 
         private void ShowVideo(VideoLibraryData.VideoEntry video)
@@ -706,7 +840,13 @@ namespace GreekProject.UI
             if (videoToSuppress != null && !string.IsNullOrWhiteSpace(videoToSuppress.id))
             {
                 suppressedVideoIds.Add(videoToSuppress.id);
-                visibleVideos.Remove(videoToSuppress);
+                if (card == null)
+                {
+                    videoCards.TryGetValue(videoToSuppress, out card);
+                }
+
+                RectTransform overlay = card?.Find("NotRecommendedOverlay") as RectTransform;
+                SetCardSuppressedState(card, overlay, true);
             }
 
             if (closeViewer)
@@ -714,7 +854,6 @@ namespace GreekProject.UI
                 HideViewer();
             }
 
-            RefillAndRebuildVisibleVideos();
         }
 
         public void RefreshRandomVideos()
@@ -726,15 +865,31 @@ namespace GreekProject.UI
                 return;
             }
 
+            List<VideoLibraryData.VideoEntry> removedVideos = visibleVideos.FindAll(video =>
+                video != null && !string.IsNullOrWhiteSpace(video.id) && suppressedVideoIds.Contains(video.id));
+            foreach (VideoLibraryData.VideoEntry suppressedVideo in removedVideos)
+            {
+                visibleVideos.Remove(suppressedVideo);
+            }
+
+            List<VideoLibraryData.VideoEntry> replaceableVideos = visibleVideos.FindAll(video => video != null);
+            if (removedVideos.Count == 0 && replaceableVideos.Count == 0)
+            {
+                return;
+            }
+
             int minimum = Mathf.Max(1, minimumVideosReplacedPerRefresh);
             int maximum = Mathf.Max(minimum, maximumVideosReplacedPerRefresh);
-            int replacementCount = Mathf.Min(visibleVideos.Count, UnityEngine.Random.Range(minimum, maximum + 1));
-            List<VideoLibraryData.VideoEntry> removedVideos = new List<VideoLibraryData.VideoEntry>();
-            for (int index = 0; index < replacementCount && visibleVideos.Count > 0; index++)
+            int additionalReplacementCount = Mathf.Min(
+                replaceableVideos.Count,
+                UnityEngine.Random.Range(minimum, maximum + 1));
+            for (int index = 0; index < additionalReplacementCount && replaceableVideos.Count > 0; index++)
             {
-                int removeIndex = UnityEngine.Random.Range(0, visibleVideos.Count);
-                removedVideos.Add(visibleVideos[removeIndex]);
-                visibleVideos.RemoveAt(removeIndex);
+                int removeIndex = UnityEngine.Random.Range(0, replaceableVideos.Count);
+                VideoLibraryData.VideoEntry videoToReplace = replaceableVideos[removeIndex];
+                removedVideos.Add(videoToReplace);
+                visibleVideos.Remove(videoToReplace);
+                replaceableVideos.RemoveAt(removeIndex);
             }
 
             RefillAndRebuildVisibleVideos(removedVideos);
