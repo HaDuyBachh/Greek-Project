@@ -25,6 +25,7 @@ public class KidFocusCameraController : MonoBehaviour
     [SerializeField] private MainRoomCameraController mainRoomController;
     [SerializeField] private Camera focusCamera;
     [SerializeField] private ChatUIFollowController chatUiController;
+    [SerializeField] private TelevisionFocusCameraController televisionFocusController;
 
     [Header("Kids")]
     [SerializeField] private List<KidFocusTarget> kids = new List<KidFocusTarget>();
@@ -101,10 +102,21 @@ public class KidFocusCameraController : MonoBehaviour
         {
             Debug.LogError("Kid_Forcus Controller requires PhoneScreen assigned before Play.", this);
         }
+
+        if (televisionFocusController == null)
+        {
+            Debug.LogError("Kid_Forcus Controller requires TV_Forcus Controller assigned before Play.", this);
+        }
     }
 
     private void Update()
     {
+        if (televisionFocusController != null && televisionFocusController.IsFocusing)
+        {
+            SetHoveredKid(null);
+            return;
+        }
+
         bool phoneHasFocusLock = lockFocusWhilePhoneVisible && isPhoneScreenVisible;
         if (phoneHasFocusLock)
         {
@@ -157,7 +169,14 @@ public class KidFocusCameraController : MonoBehaviour
             return;
         }
 
-        TryFocusAtScreenPosition(Pointer.current.position.ReadValue());
+        Vector2 pointerPosition = Pointer.current.position.ReadValue();
+        if (!IsFocusing && televisionFocusController != null &&
+            televisionFocusController.TryFocusFromOverviewClick(pointerPosition))
+        {
+            return;
+        }
+
+        TryFocusAtScreenPosition(pointerPosition);
         UpdateFocusOrbitInput();
     }
 
@@ -207,6 +226,11 @@ public class KidFocusCameraController : MonoBehaviour
 
     public bool FocusKid(string kidId)
     {
+        if (televisionFocusController != null && televisionFocusController.IsFocusing)
+        {
+            return false;
+        }
+
         if (lockFocusWhilePhoneVisible && isPhoneScreenVisible)
         {
             return false;
@@ -226,6 +250,11 @@ public class KidFocusCameraController : MonoBehaviour
 
     public void ShowOverview()
     {
+        if (televisionFocusController != null && televisionFocusController.IsFocusing)
+        {
+            return;
+        }
+
         if (lockFocusWhilePhoneVisible && isPhoneScreenVisible)
         {
             return;
@@ -243,6 +272,22 @@ public class KidFocusCameraController : MonoBehaviour
         {
             chatUiController.SetProjectionCamera(OverviewCamera);
         }
+    }
+
+    public void PrepareForExternalCameraFocus()
+    {
+        SetPhoneScreenVisible(false);
+        SetFocusedKidActivityPaused(selectedKid, false);
+        selectedKid = null;
+        followVelocity = Vector3.zero;
+        SetHoveredKid(null);
+        SetCameraActive(OverviewCamera, false);
+        SetCameraActive(focusCamera, false);
+    }
+
+    public void RestoreOverviewAfterExternalFocus()
+    {
+        ShowOverview();
     }
 
     private void TryFocusAtScreenPosition(Vector2 screenPosition)

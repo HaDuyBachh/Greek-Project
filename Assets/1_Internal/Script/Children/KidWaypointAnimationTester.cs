@@ -103,6 +103,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private bool focusPauseRequested;
     private bool isTravelling;
     private bool emotionChangedWhilePaused;
+    private string currentAnimationState = string.Empty;
 
     public bool IsPausedForPhone => phonePauseRequested;
     public bool IsPausedForFocus => focusPauseRequested;
@@ -110,6 +111,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
     public bool IsTravelling => isTravelling;
     public EmotionState CurrentEmotion => currentEmotion;
     public int BrainrotExposure => brainrotExposure;
+    public LabeledWaypoint CurrentChairSeat => currentChairSeat;
+    public string CurrentAnimationState => currentAnimationState;
 
     private void Awake()
     {
@@ -554,6 +557,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
             return;
         }
 
+        currentAnimationState = stateName;
         animator.CrossFadeInFixedTime(Animator.StringToHash(AnimatorLayerPrefix + stateName), animationBlendTime);
     }
 

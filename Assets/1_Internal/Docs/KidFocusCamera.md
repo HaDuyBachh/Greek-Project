@@ -48,20 +48,28 @@ Vung hover dung chung cach tinh nay va chi cho phep mot Kid hien outline tai mot
 
 ## Cau truc scene
 
-Hai camera duoc tach thanh hai GameObject quan ly rieng trong scene:
+Ba camera duoc tach thanh ba GameObject quan ly rieng trong scene:
 
 ```text
 Controller
 +-- CameraController
     +-- Main_room Controller     MainRoomCameraController
     +-- Kid_Forcus Controller    KidFocusCameraController
+    +-- TV_Forcus Controller     TelevisionFocusCameraController
 ```
 
-`Main_room Controller` chi quan ly zoom, pan va collision cua camera tong. `Kid_Forcus Controller` chi quan ly chon Kid, orbit, collision camera focus va PhoneScreen. Object `Cameras` chi dung lam parent transform cua hai camera that:
+`Main_room Controller` chi quan ly zoom, pan va collision cua camera tong.
+`Kid_Forcus Controller` chi quan ly chon Kid, orbit, collision camera focus va
+PhoneScreen. `TV_Forcus Controller` chi quan ly chon TV/Kid dang xem TV, camera
+TV va quyen raycast cua TV UI. Chuyen camera khong reset video TV dang phat;
+`TelevisionVideoFeedUI` tu quan ly broadcast 10 FPS va rotation. Object `Cameras` chi dung lam parent transform
+cua ba camera that:
 
 - `MainRoomCameraController > Controlled Camera`: `Main_room`
 - `KidFocusCameraController > Main Room Controller`: `Main_room Controller`
 - `KidFocusCameraController > Focus Camera`: `Kid_Forcus`
+- `TelevisionFocusCameraController > Television Camera`: `TV_Forcus`
+- `TelevisionFocusCameraController > Television Canvas`: `TV LED 30¨/Screen`
 - `Chat Ui Controller`: `Controller/ChatUIFollowController`
 - `Kids`: danh sach Kid co the focus, moi phan tu gom `kidId`, `kidRoot`, `focusPoint`
 - `Outline`: component QuickOutline tren root cua Kid

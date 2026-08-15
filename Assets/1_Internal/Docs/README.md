@@ -197,12 +197,13 @@ Controller
 +-- CameraController
 |   +-- Main_room Controller
 |   +-- Kid_Forcus Controller
+|   +-- TV_Forcus Controller
 +-- ChatUIFollowController
 +-- SceneInitializer
 ```
 
 `SceneInitializer` chi expose `Kid Focus Controller` va `Start In Overview`.
-Toan bo camera, chat va phone reference da duoc gan san truc tiep tren hai
+Toan bo camera, chat, phone va TV reference da duoc gan san truc tiep tren ba
 controller con trong scene truoc khi Play.
 
 Script nam tai
@@ -223,6 +224,19 @@ pan va collision cua camera tong. `KidFocusCameraController` tren
 - Tam dung random activity cua Kid khi phone hien thi.
 - Bo qua click scene khi con tro dang nam tren UI.
 - Dung rect cua `ScreenMask` lam vung che chat bubble.
+
+`TV_Forcus Controller` chi quan ly viec chuyen sang camera `TV_Forcus` va quyen
+tuong tac voi TV UI:
+
+- Click truc tiep vao `TV LED 30¨` tu `Main_room` se vao `TV_Forcus`.
+- Click Kid dang ngoi tai mot trong cac `Television Seats` va dang chay animation
+  nam trong `Television Animations` cung se vao `TV_Forcus`. Scene hien gan ba
+  ghe sofa va animation `SitChairIdle`; cac dieu kien nay deu sua duoc tren Inspector.
+- `Esc` hoac chuot phai quay lai `Main_room`.
+- `GraphicRaycaster` cua TV duoc luu san trong scene o trang thai tat, chi duoc
+  bat khi `TV_Forcus` dang active. Vi vay TV UI khong nhan click tu camera tong.
+- Chuyen vao `TV_Forcus` khong random lai feed va khong khoi dong lai player;
+  video TV dang phat o camera tong tiep tuc tu dung frame hien tai.
 
 `ChatUiAnchorFollower` an chat bubble khi bubble overlap `ScreenMask`, vi vay
 chat cua Kid khong ve de len giao dien dien thoai. Component nay va
@@ -264,6 +278,66 @@ tu them component luc Play.
 - Khong ghi de UI nguoi dung can tay neu chua co migration ro rang.
 - Control tuong tac phai nam tren `GraphicRaycaster` va khong lam mat
   `PhoneInputBlocker`.
+
+## Television video UI
+
+`TV LED 30¨/Screen/ScreenMask` trong `Assets/1_Internal/Scenes/1_Main.unity`
+co UI video rieng va khong dung `PhoneVideoFeedUI`. `TV_Forcus Controller` co
+mot bridge serialize den `KidFocusCameraController` de dam bao moi thoi diem chi
+mot che do camera nhan input.
+
+- `TelevisionVideoFeedUI` duoc gan san tren `ScreenMask`; library, 6 card slot,
+  player, progress, play/pause va nut dong deu la reference serialize trong scene.
+- Feed dung light theme voi nen trang, card xam rat nhat, chu den; thanh dieu huong doc ben trai, header `Recommended` va
+  bo cuc co dinh 3 cot x 2 hang. Moi lan hien chi co toi da 6 video.
+- Click card mo `VideoPlayerView` phu toan bo man TV. Viewer chi hien video,
+  progress, play/pause va nut `X` nho o goc tren ben phai; click `X` quay lai feed.
+- Sau `VideoInfo` cua ca 6 card co nut `More` gan san truoc Play. Nut nay mo
+  `VideoOptionsPanel` cua TV. `Suggest more videos` chi dong panel;
+  `Don't recommend this video` dua video vao blacklist TV cua phien hien tai,
+  dong panel va bat `NotRecommendedOverlay` phu dung toan bo card. Overlay dung
+  nen trang opaque de che hoan toan thumbnail va metadata cu, hien `Video removed`
+  cung hai hang rounded full-width `Undo`, `Tell us why`; hai action chi la visual.
+  Card van giu
+  vi tri nhu Phone nhung `OpenButton` va `MoreButton` bi khoa. Video no-recommend
+  khong duoc mo, broadcast, thay vao slot khac hay chon lai trong cung phien Play.
+- Sau dau ba cham cua 6 card duoc dong bo cung RectTransform, font `0.0085` va
+  alignment; khong con truong hop `Video 01` co dau ba cham lon hon cac card khac.
+- `VideoOptionsPanel` la menu theo card: mac dinh rong bang 50% chieu rong card,
+  cao bang 50% chieu cao card, can phai sat nut `More` va dat ngay ben duoi nut vua bam. Neu khong
+  du cho, panel dat phia tren de khong bi cat khoi TV. `Options Panel Width Ratio`,
+  `Options Panel Height Ratio` va `Options Panel Vertical Gap` deu sua duoc tren Inspector.
+- `VideoOptionsBackdrop` la GameObject co san trong scene, phu toan bo TV bang
+  lop den alpha `0.22` va co `Button` serialize san. Khi menu mo, backdrop nam
+  tren feed nhung duoi panel; click ra ngoai panel se dong ca backdrop va menu.
+- Object `VideoPlayerView/VideoDetails/Close` co component `Button` gan san trong
+  scene. Listener duoc bind den `ClosePlayer` trong `Awake`; khong co component
+  nao duoc them luc Play.
+- Runtime khong tao/huy card, khong `AddComponent` va khong rebuild UI. Tat ca
+  object va component tuong tac da ton tai truoc Play.
+- Sau khi cac frame duoc nap trong `Awake`, TV chon ngau nhien 6 video va tu phat
+  mot video trong danh sach ngay ca khi chua focus. Khi vao `TV_Forcus`, nguoi choi
+  xem tiep dung video va dung timestamp dang chay.
+- Player TV dung cung sprite sheet 8x8, toc do 10 FPS va `RawImage.uvRect` nhu
+  Phone; khong dung `VideoPlayer` va khong chieu MP4 truc tiep.
+- Moi broadcast chay ngau nhien trong khoang `Minimum Seconds Before Rotation`
+  den `Maximum Seconds Before Rotation` (scene mac dinh `10-15` giay). Khi het thoi gian, player
+  dong; video vua phat duoc thay ngay tai slot cu bang mot video ngau nhien chua
+  co trong 6 slot. Neu TV khong focus, broadcast moi bat dau ngay; neu dang focus,
+  man hinh quay ve feed de nguoi choi chon.
+- Bo dem tu dong mo/doi broadcast chi chay khi TV khong focus. Khi nguoi dung vao
+  `TV_Forcus`, frame sequence hien tai van phat de xem nhung bo random tam dung:
+  no khong tu dong dong player, thay slot hay mo video moi. Khi thoat focus, bo dem tiep tuc.
+- Bam nut `X` cung dong player va, khi `Replace Played Video After Close` duoc bat,
+  thay video vua dong tai slot cu. Khi thoat `TV_Forcus`, TV dam bao co mot video
+  ngau nhien dang phat tren camera tong.
+- `Auto Play When Not Focused`, hai gioi han thoi gian va quy tac thay slot deu duoc
+  expose tren Inspector cua `TelevisionVideoFeedUI`.
+- Cac thong so bo cuc, mau sac va so video duoc expose tren Inspector. Khi muon
+  ap dung lai cac gia tri Edit Mode, chon TV `ScreenMask` va bam
+  `Apply Television Layout`; thao tac nay chi sua scene trong Edit Mode.
+- TV tai toan bo image sequence 10 FPS trong `Awake`, truoc khi nguoi dung chon
+  video; khong co delayed loader hay runtime bootstrap gan script.
 
 ## Checklist kiem thu
 
