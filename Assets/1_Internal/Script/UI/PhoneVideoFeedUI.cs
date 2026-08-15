@@ -12,7 +12,7 @@ namespace GreekProject.UI
     public sealed class PhoneVideoFeedUI : MonoBehaviour
     {
         private const string TemplateRootName = "VideoFeedTemplate";
-        private const int TemplateVersion = 19;
+        private const int TemplateVersion = 26;
         private const float SequenceFramesPerSecond = 10f;
         private const int SequenceColumns = 8;
         private const int SequenceRows = 8;
@@ -65,11 +65,20 @@ namespace GreekProject.UI
         private TextMeshProUGUI viewerMetadata;
         private TextMeshProUGUI viewerDescription;
         private TextMeshProUGUI viewerChannel;
+        private TextMeshProUGUI viewerSubscribers;
+        private TextMeshProUGUI viewerLikes;
+        private TextMeshProUGUI viewerCommentCount;
+        private Image viewerChannelAvatar;
+        private TextMeshProUGUI viewerChannelInitial;
         private RawImage viewerVideoSurface;
         private Button playPauseButton;
         private PlaybackControlGraphic playPauseIcon;
         private AspectRatioFitter viewerVideoAspect;
         private Slider progressSlider;
+        private RectTransform videoOptionsBackdrop;
+        private RectTransform videoOptionsPanel;
+        private RectTransform selectedVideoCard;
+        private bool videoOptionsOpenedFromViewer;
         private VideoLibraryData.VideoEntry activeVideo;
         private bool suppressProgressCallback;
         private bool effectAppliedForCurrentPlay;
@@ -80,15 +89,18 @@ namespace GreekProject.UI
         private int displayedSequenceFrame = -1;
         private FrameSequence activeSequence;
         private readonly Dictionary<string, Sprite> runtimeThumbnails = new Dictionary<string, Sprite>();
+        private readonly Dictionary<int, Sprite> uploaderAvatars = new Dictionary<int, Sprite>();
+        private readonly Dictionary<VideoLibraryData.VideoEntry, RectTransform> videoCards =
+            new Dictionary<VideoLibraryData.VideoEntry, RectTransform>();
         private readonly Dictionary<VideoLibraryData.VideoEntry, FrameSequence> frameSequences =
             new Dictionary<VideoLibraryData.VideoEntry, FrameSequence>();
 
-        private static readonly Color ScreenColor = Hex("0F0F0F");
-        private static readonly Color PanelColor = Hex("181818");
-        private static readonly Color RaisedColor = Hex("272727");
-        private static readonly Color TextColor = Hex("F5F5F5");
-        private static readonly Color SecondaryTextColor = Hex("AAAAAA");
-        private static readonly Color DividerColor = Hex("343434");
+        private static readonly Color ScreenColor = Hex("FFFFFF");
+        private static readonly Color PanelColor = Hex("FFFFFF");
+        private static readonly Color RaisedColor = Hex("F2F2F2");
+        private static readonly Color TextColor = Hex("0F0F0F");
+        private static readonly Color SecondaryTextColor = Hex("606060");
+        private static readonly Color DividerColor = Hex("E5E5E5");
         private static readonly Color AccentColor = Hex("FF0033");
         private static readonly Color ThumbnailColor = Hex("F2F2F2");
 
@@ -134,6 +146,16 @@ namespace GreekProject.UI
             }
 
             runtimeThumbnails.Clear();
+            foreach (Sprite avatar in uploaderAvatars.Values)
+            {
+                if (avatar != null)
+                {
+                    Destroy(avatar);
+                }
+            }
+
+            uploaderAvatars.Clear();
+            videoCards.Clear();
         }
 
         [ContextMenu("Rebuild Video Feed Template")]
@@ -169,6 +191,14 @@ namespace GreekProject.UI
             BuildCategories(root);
             BuildVideoScroll(root);
             BuildBottomNavigation(root);
+            viewerRoot = null;
+            EnsureViewer();
+            if (viewerRoot != null)
+            {
+                viewerRoot.gameObject.SetActive(false);
+            }
+
+            BuildVideoOptionsPanel(root);
 
 #if UNITY_EDITOR
             if (!Application.isPlaying)
@@ -188,7 +218,8 @@ namespace GreekProject.UI
 
             RectTransform logoMark = CreateRoundedPanel("LogoMark", logo, AccentColor,
                 new Vector2(0f, 0.14f), new Vector2(0.2f, 0.86f), 0.2f);
-            CreateText("LogoInitial", logoMark, "U", TextColor, 0.0105f, TextAlignmentOptions.Center, Vector2.zero, Vector2.one, FontStyles.Bold);
+            CreateText("LogoInitial", logoMark, "U", Color.white, 0.0105f, TextAlignmentOptions.Center,
+                Vector2.zero, Vector2.one, FontStyles.Bold);
             TextMeshProUGUI logoText = CreateText("LogoText", logo, "UTube", TextColor, 0.0105f,
                 TextAlignmentOptions.MidlineLeft, new Vector2(0.25f, 0f), Vector2.one, FontStyles.Bold);
             logoText.textWrappingMode = TextWrappingModes.NoWrap;
@@ -199,9 +230,8 @@ namespace GreekProject.UI
             TextMeshProUGUI placeholder = CreateText("Placeholder", search, "Search", SecondaryTextColor, 0.0075f,
                 TextAlignmentOptions.MidlineLeft, new Vector2(0.09f, 0.1f), new Vector2(0.79f, 0.9f));
             placeholder.fontStyle = FontStyles.Italic;
-
-            CreateText("SearchIcon", search, "O", TextColor, 0.0085f, TextAlignmentOptions.Center,
-                new Vector2(0.82f, 0f), Vector2.one, FontStyles.Bold);
+            CreateSpriteIcon("SearchIcon", search, LoadEditorIcon("search"), TextColor,
+                new Vector2(0.82f, 0f), Vector2.one);
         }
 
         private static void BuildCategories(RectTransform parent)
@@ -300,38 +330,42 @@ namespace GreekProject.UI
 
             RectTransform avatar = CreateRoundedPanel("ChannelAvatar", videoInfo, avatarColor,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), 0.5f);
+            avatar.GetComponent<RoundedRectGraphic>().ClipChildren = true;
             avatar.pivot = new Vector2(0f, 1f);
-            avatar.anchoredPosition = new Vector2(0.0004f, -0.0061f);
+            avatar.anchoredPosition = new Vector2(0f, -0.003f);
             avatar.sizeDelta = new Vector2(avatarSize, avatarSize);
-            CreateText("Initial", avatar, "C", TextColor, 0.008f, TextAlignmentOptions.Center,
+            CreateText("Initial", avatar, "C", Color.white, 0.008f, TextAlignmentOptions.Center,
                 Vector2.zero, Vector2.one, FontStyles.Bold);
 
             TextMeshProUGUI titleText = CreateText("Title", videoInfo, title, TextColor, titleFontSize,
-                TextAlignmentOptions.MidlineLeft, Vector2.one, Vector2.one, FontStyles.Bold);
+                TextAlignmentOptions.TopLeft, Vector2.up, Vector2.one, FontStyles.Bold);
             RectTransform titleRect = titleText.rectTransform;
-            titleRect.pivot = Vector2.one;
-            titleRect.anchoredPosition = new Vector2(0.0004f, -0.0045f);
-            titleRect.sizeDelta = new Vector2(0.18073f, 0.0137f);
+            SetTopRect(titleRect, avatarSize + 0.009f, 0.001f, 0.015f, -1f, 0.014f);
             titleText.textWrappingMode = TextWrappingModes.Normal;
             titleText.overflowMode = TextOverflowModes.Ellipsis;
 
             TextMeshProUGUI descriptionText = CreateText("Description", videoInfo, description, SecondaryTextColor, metadataFontSize,
-                TextAlignmentOptions.MidlineLeft, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f));
+                TextAlignmentOptions.MidlineLeft, Vector2.up, Vector2.one);
             RectTransform descriptionRect = descriptionText.rectTransform;
-            descriptionRect.pivot = new Vector2(1f, 0.5f);
-            descriptionRect.anchoredPosition = new Vector2(0.0004f, -0.0045f);
-            descriptionRect.sizeDelta = new Vector2(0.18073f, 0.01475f);
+            SetTopRect(descriptionRect, avatarSize + 0.009f, 0.0175f, 0.011f, -1f, 0.014f);
             descriptionText.textWrappingMode = TextWrappingModes.NoWrap;
             descriptionText.overflowMode = TextOverflowModes.Ellipsis;
 
             TextMeshProUGUI moreText = CreateText("More", videoInfo, ".\n.\n.", SecondaryTextColor, 0.0085f,
                 TextAlignmentOptions.Center, new Vector2(0.94f, 0.5f), new Vector2(1f, 0.96f), FontStyles.Bold);
             moreText.lineSpacing = -70f;
+            moreText.raycastTarget = true;
+            Button moreButton = moreText.gameObject.AddComponent<Button>();
+            moreButton.targetGraphic = moreText;
+            moreButton.transition = Selectable.Transition.ColorTint;
+            moreButton.colors = CreateButtonColors(Color.white);
+            moreButton.onClick.AddListener(() => ToggleVideoOptionsPanel(card));
             CreateImage("Divider", card, DividerColor, Vector2.zero, new Vector2(1f, 0.012f));
         }
 
         private void BuildVideoCards(RectTransform content)
         {
+            videoCards.Clear();
             int index = 1;
             foreach (VideoLibraryData.VideoEntry video in videoLibrary.Videos)
             {
@@ -347,8 +381,9 @@ namespace GreekProject.UI
 
         private void CreateVideoCard(RectTransform parent, string objectName, VideoLibraryData.VideoEntry video)
         {
-            Color avatarColor = Color.Lerp(video.mockColor, ScreenColor, 0.25f);
-            CreateVideoCard(parent, objectName, video.title, video.Metadata, video.duration, video.mockColor, avatarColor);
+            Color avatarColor = video.channelColor;
+            CreateVideoCard(parent, objectName, video.title, video.Metadata, GetSequenceDurationLabel(video),
+                video.mockColor, avatarColor);
 
             RectTransform card = parent.GetChild(parent.childCount - 1) as RectTransform;
             if (card == null)
@@ -356,6 +391,11 @@ namespace GreekProject.UI
                 Debug.LogError($"Failed to create video card '{objectName}'.", this);
                 return;
             }
+
+            videoCards[video] = card;
+
+            RectTransform cardAvatar = card.Find("VideoInfo/ChannelAvatar") as RectTransform;
+            ConfigureUploaderAvatar(cardAvatar, video.channel, ResolveUploaderAvatar(video), video.channelColor);
 
             Image cardImage = card.GetComponent<Image>();
             if (cardImage == null)
@@ -413,13 +453,8 @@ namespace GreekProject.UI
             }
 
             runtimeLibraryInitialized = true;
-
-            Transform staleViewer = template.Find("VideoPlayerView");
-            if (staleViewer != null)
-            {
-                staleViewer.gameObject.SetActive(false);
-                Destroy(staleViewer.gameObject);
-            }
+            LoadUploaderAvatars();
+            BindVideoOptionsPanel(template);
 
             frameSequences.Clear();
 
@@ -430,6 +465,11 @@ namespace GreekProject.UI
             viewerMetadata = null;
             viewerDescription = null;
             viewerChannel = null;
+            viewerSubscribers = null;
+            viewerLikes = null;
+            viewerCommentCount = null;
+            viewerChannelAvatar = null;
+            viewerChannelInitial = null;
             viewerVideoSurface = null;
             viewerVideoAspect = null;
             playPauseButton = null;
@@ -439,6 +479,13 @@ namespace GreekProject.UI
             activeSequence = null;
             playbackRequested = false;
 
+            BindViewerFromScene(template);
+            if (viewerRoot == null)
+            {
+                Debug.LogError("VideoFeedTemplate/VideoPlayerView is missing. Rebuild the scene template in Edit Mode.", this);
+                return;
+            }
+
             for (int index = content.childCount - 1; index >= 0; index--)
             {
                 GameObject oldCard = content.GetChild(index).gameObject;
@@ -446,9 +493,8 @@ namespace GreekProject.UI
                 Destroy(oldCard);
             }
 
-            BuildVideoCards(content);
             LoadFrameSequences();
-            EnsureViewer();
+            BuildVideoCards(content);
             if (viewerRoot != null)
             {
                 viewerRoot.gameObject.SetActive(false);
@@ -462,28 +508,35 @@ namespace GreekProject.UI
                 return;
             }
 
-            EnsureViewer();
             if (viewerRoot == null)
             {
                 return;
             }
 
+            HideVideoOptionsPanel();
             ApplyThumbnail(viewerThumbnail, viewerMockNumber, video);
             activeVideo = video;
             effectAppliedForCurrentPlay = false;
             watchedPlaybackSeconds = 0f;
             viewerTitle.text = video.title;
-            viewerMetadata.text = $"{video.views} | {video.published} | {video.duration}";
+            viewerMetadata.text = $"{GetChannelHandle(video.channel)}  {video.likes} likes  {video.views}  {video.published}   more";
             viewerDescription.text = video.description;
             viewerChannel.text = video.channel;
+            viewerSubscribers.text = video.subscribers;
+            viewerLikes.text = video.likes;
+            viewerCommentCount.text = string.IsNullOrWhiteSpace(video.comments)
+                ? "Comments"
+                : $"Comments  {video.comments}";
+            ConfigureUploaderAvatar(viewerChannelAvatar?.rectTransform.parent as RectTransform,
+                video.channel, ResolveUploaderAvatar(video), video.channelColor);
             viewerRoot.gameObject.SetActive(true);
             viewerRoot.SetAsLastSibling();
-            LayoutViewerDetails();
             ConfigureFrameSequence(video);
         }
 
         private void HideViewer()
         {
+            HideVideoOptionsPanel();
             if (viewerRoot != null)
             {
                 activeVideo = null;
@@ -491,6 +544,174 @@ namespace GreekProject.UI
                 playbackRequested = false;
                 UpdatePlayPauseIcon(false);
                 viewerRoot.gameObject.SetActive(false);
+            }
+        }
+
+        private void BuildVideoOptionsPanel(RectTransform parent)
+        {
+            Transform existingBackdrop = parent.Find("VideoOptionsBackdrop");
+            if (existingBackdrop != null)
+            {
+                videoOptionsBackdrop = existingBackdrop as RectTransform;
+            }
+            else
+            {
+                videoOptionsBackdrop = CreateImage("VideoOptionsBackdrop", parent,
+                    new Color(0f, 0f, 0f, 0.42f), Vector2.zero, Vector2.one);
+                Image backdropImage = videoOptionsBackdrop.GetComponent<Image>();
+                backdropImage.raycastTarget = true;
+                Button backdropButton = videoOptionsBackdrop.gameObject.AddComponent<Button>();
+                backdropButton.targetGraphic = backdropImage;
+                backdropButton.transition = Selectable.Transition.None;
+                videoOptionsBackdrop.gameObject.SetActive(false);
+            }
+
+            Transform existing = parent.Find("VideoOptionsPanel");
+            if (existing != null)
+            {
+                videoOptionsPanel = existing as RectTransform;
+                videoOptionsBackdrop.SetSiblingIndex(videoOptionsPanel.GetSiblingIndex());
+                return;
+            }
+
+            videoOptionsPanel = CreateRoundedPanel("VideoOptionsPanel", parent, PanelColor,
+                new Vector2(0.055f, 0.13f), new Vector2(0.945f, 0.27f), 0.055f);
+            RoundedRectGraphic panelGraphic = videoOptionsPanel.GetComponent<RoundedRectGraphic>();
+            panelGraphic.raycastTarget = true;
+
+            Shadow shadow = videoOptionsPanel.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.24f);
+            shadow.effectDistance = new Vector2(0f, -0.003f);
+            shadow.useGraphicAlpha = true;
+
+            CreateVideoOptionRow("SuggestMore", videoOptionsPanel, LoadEditorIcon("square-plus"),
+                "Suggest more videos", new Vector2(0f, 0.5f), Vector2.one);
+            CreateImage("Divider", videoOptionsPanel, DividerColor,
+                new Vector2(0.045f, 0.495f), new Vector2(0.955f, 0.505f));
+            CreateVideoOptionRow("DoNotSuggest", videoOptionsPanel, LoadEditorIcon("ban"),
+                "Don't recommend this video", Vector2.zero, new Vector2(1f, 0.5f));
+            videoOptionsPanel.gameObject.SetActive(false);
+        }
+
+        private static void CreateVideoOptionRow(string name, RectTransform parent, Sprite icon, string label,
+            Vector2 anchorMin, Vector2 anchorMax)
+        {
+            RectTransform row = CreateImage(name, parent, Color.clear, anchorMin, anchorMax);
+            Image hitArea = row.GetComponent<Image>();
+            hitArea.raycastTarget = true;
+            Button button = row.gameObject.AddComponent<Button>();
+            button.targetGraphic = hitArea;
+            button.colors = CreateButtonColors(PanelColor);
+
+            CreateSpriteIcon("Icon", row, icon, TextColor,
+                new Vector2(0.045f, 0.24f), new Vector2(0.12f, 0.76f));
+            CreateText("Label", row, label, TextColor, 0.007f, TextAlignmentOptions.MidlineLeft,
+                new Vector2(0.155f, 0.08f), new Vector2(0.96f, 0.92f), FontStyles.Bold);
+        }
+
+        private void BindVideoOptionsPanel(Transform template)
+        {
+            videoOptionsBackdrop = template?.Find("VideoOptionsBackdrop") as RectTransform;
+            videoOptionsPanel = template?.Find("VideoOptionsPanel") as RectTransform;
+            if ((videoOptionsBackdrop == null || videoOptionsPanel == null) && template is RectTransform templateRect)
+            {
+                BuildVideoOptionsPanel(templateRect);
+            }
+
+            if (videoOptionsBackdrop == null || videoOptionsPanel == null)
+            {
+                Debug.LogError("VideoFeedTemplate video options UI is missing. Add it in Edit Mode.", this);
+                return;
+            }
+
+            Button backdropButton = videoOptionsBackdrop.GetComponent<Button>();
+            if (backdropButton != null)
+            {
+                backdropButton.onClick.RemoveListener(HideVideoOptionsPanel);
+                backdropButton.onClick.AddListener(HideVideoOptionsPanel);
+            }
+
+            BindVideoOptionButton("SuggestMore", HideVideoOptionsPanel);
+            BindVideoOptionButton("DoNotSuggest", HideSelectedVideoCard);
+            SetVideoOptionLabel("SuggestMore", "Suggest more videos");
+            SetVideoOptionLabel("DoNotSuggest", "Don't recommend this video");
+            videoOptionsBackdrop.gameObject.SetActive(false);
+            videoOptionsPanel.gameObject.SetActive(false);
+        }
+
+        private void BindVideoOptionButton(string path, UnityEngine.Events.UnityAction action)
+        {
+            Button button = videoOptionsPanel.Find(path)?.GetComponent<Button>();
+            if (button == null)
+            {
+                return;
+            }
+
+            button.onClick.RemoveListener(action);
+            button.onClick.AddListener(action);
+        }
+
+        private void SetVideoOptionLabel(string path, string value)
+        {
+            TextMeshProUGUI label = videoOptionsPanel.Find(path + "/Label")?.GetComponent<TextMeshProUGUI>();
+            if (label != null)
+            {
+                label.text = value;
+            }
+        }
+
+        private void ToggleVideoOptionsPanel(RectTransform card, bool openedFromViewer = false)
+        {
+            if (videoOptionsBackdrop == null || videoOptionsPanel == null)
+            {
+                return;
+            }
+
+            bool show = !videoOptionsPanel.gameObject.activeSelf;
+            selectedVideoCard = show ? card : null;
+            videoOptionsOpenedFromViewer = show && openedFromViewer;
+            videoOptionsBackdrop.gameObject.SetActive(show);
+            videoOptionsPanel.gameObject.SetActive(show);
+            if (show)
+            {
+                videoOptionsBackdrop.SetAsLastSibling();
+                videoOptionsPanel.SetAsLastSibling();
+            }
+        }
+
+        private void HideSelectedVideoCard()
+        {
+            RectTransform card = selectedVideoCard;
+            bool closeViewer = videoOptionsOpenedFromViewer;
+            HideVideoOptionsPanel();
+            if (card != null)
+            {
+                RectTransform content = card.parent as RectTransform;
+                card.gameObject.SetActive(false);
+                if (content != null)
+                {
+                    LayoutRebuilder.MarkLayoutForRebuild(content);
+                }
+            }
+
+            if (closeViewer)
+            {
+                HideViewer();
+            }
+        }
+
+        private void HideVideoOptionsPanel()
+        {
+            selectedVideoCard = null;
+            videoOptionsOpenedFromViewer = false;
+            if (videoOptionsBackdrop != null)
+            {
+                videoOptionsBackdrop.gameObject.SetActive(false);
+            }
+
+            if (videoOptionsPanel != null)
+            {
+                videoOptionsPanel.gameObject.SetActive(false);
             }
         }
 
@@ -507,11 +728,29 @@ namespace GreekProject.UI
                 return;
             }
 
-            viewerRoot = CreateImage("VideoPlayerView", template, ScreenColor, Vector2.zero, Vector2.one);
+            if (Application.isPlaying)
+            {
+                Debug.LogError("VideoPlayerView must already exist in the scene before Play Mode.", this);
+                return;
+            }
+
+            viewerRoot = CreateImage("VideoPlayerView", template, ScreenColor, Vector2.zero, new Vector2(1f, 0.915f));
             viewerRoot.GetComponent<Image>().raycastTarget = true;
 
-            RectTransform stage = CreateImage("VideoStage", viewerRoot, Color.black,
-                new Vector2(0f, 0.67f), Vector2.one);
+            RectTransform headerLogo = template.Find("Header/Logo") as RectTransform;
+            if (headerLogo != null && headerLogo.GetComponent<Button>() == null)
+            {
+                Image hitArea = headerLogo.gameObject.AddComponent<Image>();
+                hitArea.color = Color.clear;
+                hitArea.raycastTarget = true;
+                Button homeButton = headerLogo.gameObject.AddComponent<Button>();
+                homeButton.targetGraphic = hitArea;
+                homeButton.transition = Selectable.Transition.None;
+                homeButton.onClick.AddListener(HideViewer);
+            }
+
+            RectTransform stage = CreateImage("VideoStage", viewerRoot, ScreenColor,
+                new Vector2(0f, 0.71f), Vector2.one);
             RectTransform thumbnailRect = CreateImage("Thumbnail", stage, Color.white, Vector2.zero, Vector2.one);
             viewerThumbnail = thumbnailRect.GetComponent<Image>();
             viewerThumbnail.raycastTarget = false;
@@ -555,8 +794,8 @@ namespace GreekProject.UI
             playPauseButton.onClick.AddListener(TogglePlayback);
 
             RectTransform details = CreateImage("VideoDetails", viewerRoot, PanelColor,
-                new Vector2(0f, 0.118f), new Vector2(1f, 0.67f));
-            viewerTitle = CreateText("Title", details, string.Empty, TextColor, 0.0115f,
+                Vector2.zero, new Vector2(1f, 0.71f));
+            viewerTitle = CreateText("Title", details, string.Empty, TextColor, 0.009f,
                 TextAlignmentOptions.TopLeft, new Vector2(0.045f, 0.77f), new Vector2(0.955f, 0.94f), FontStyles.Bold);
             viewerTitle.textWrappingMode = TextWrappingModes.Normal;
             viewerTitle.overflowMode = TextOverflowModes.Ellipsis;
@@ -568,31 +807,58 @@ namespace GreekProject.UI
             viewerDescription.textWrappingMode = TextWrappingModes.Normal;
             viewerDescription.overflowMode = TextOverflowModes.Ellipsis;
 
-            CreateImage("ChannelDivider", details, DividerColor, new Vector2(0f, 0.35f), new Vector2(1f, 0.356f));
+            CreateImage("ChannelDivider", details, DividerColor, Vector2.zero, Vector2.one);
             RectTransform channelDot = CreateRoundedPanel("ChannelAvatar", details, AccentColor,
                 new Vector2(0.045f, 0.16f), new Vector2(0.14f, 0.31f), 0.5f);
-            CreateText("Initial", channelDot, "U", TextColor, 0.008f, TextAlignmentOptions.Center,
+            channelDot.GetComponent<RoundedRectGraphic>().ClipChildren = true;
+            viewerChannelInitial = CreateText("Initial", channelDot, "U", Color.white, 0.008f, TextAlignmentOptions.Center,
                 Vector2.zero, Vector2.one, FontStyles.Bold);
+            RectTransform channelAvatarImage = CreateImage("Photo", channelDot, Color.white, Vector2.zero, Vector2.one);
+            viewerChannelAvatar = channelAvatarImage.GetComponent<Image>();
+            viewerChannelAvatar.preserveAspect = true;
+            viewerChannelAvatar.raycastTarget = false;
+            viewerChannelAvatar.gameObject.SetActive(false);
             viewerChannel = CreateText("Channel", details, string.Empty, TextColor, 0.0075f,
                 TextAlignmentOptions.MidlineLeft, new Vector2(0.17f, 0.16f), new Vector2(0.72f, 0.31f), FontStyles.Bold);
+            viewerSubscribers = CreateText("Subscribers", details, string.Empty, SecondaryTextColor, 0.0052f,
+                TextAlignmentOptions.MidlineLeft, Vector2.zero, Vector2.one);
+
+            RectTransform subscribe = CreateRoundedPanel("Subscribe", details, TextColor,
+                Vector2.zero, Vector2.one, 0.45f);
+            CreateText("Label", subscribe, "Subscribed", ScreenColor, 0.0054f,
+                TextAlignmentOptions.Center, Vector2.zero, Vector2.one, FontStyles.Bold);
+
+            RectTransform likeAction = CreateRoundedPanel("LikeAction", details, RaisedColor,
+                Vector2.zero, Vector2.one, 0.45f);
+            CreateSpriteIcon("Icon", likeAction, LoadEditorIcon("like"), TextColor,
+                new Vector2(0.08f, 0.2f), new Vector2(0.4f, 0.8f));
+            viewerLikes = CreateText("Count", likeAction, string.Empty, TextColor, 0.0052f,
+                TextAlignmentOptions.MidlineLeft, new Vector2(0.44f, 0f), Vector2.one, FontStyles.Bold);
+            RectTransform dislikeAction = CreateRoundedPanel("DislikeAction", details, RaisedColor,
+                Vector2.zero, Vector2.one, 0.45f);
+            RectTransform dislikeIcon = CreateSpriteIcon("Icon", dislikeAction, LoadEditorIcon("like"), TextColor,
+                new Vector2(0.25f, 0.2f), new Vector2(0.75f, 0.8f));
+            dislikeIcon.localRotation = Quaternion.Euler(0f, 0f, 180f);
+            CreateSpriteIcon("Share", details, LoadEditorIcon("share"), TextColor, Vector2.zero, Vector2.one);
+            CreateText("More", details, "...", TextColor, 0.007f,
+                TextAlignmentOptions.Center, Vector2.zero, Vector2.one, FontStyles.Bold);
+
+            RectTransform comments = CreateRoundedPanel("Comments", details, RaisedColor,
+                Vector2.zero, Vector2.one, 0.08f);
+            viewerCommentCount = CreateText("Count", comments, "Comments", TextColor, 0.0058f,
+                TextAlignmentOptions.MidlineLeft, new Vector2(0.035f, 0.58f), new Vector2(0.75f, 0.95f), FontStyles.Bold);
+            CreateText("Menu", comments, "...", TextColor, 0.006f,
+                TextAlignmentOptions.Center, new Vector2(0.88f, 0.58f), new Vector2(0.97f, 0.95f), FontStyles.Bold);
+            RectTransform commentAvatar = CreateRoundedPanel("CommentAvatar", comments, SecondaryTextColor,
+                new Vector2(0.035f, 0.12f), new Vector2(0.14f, 0.52f), 0.5f);
+            CreateText("Initial", commentAvatar, "U", TextColor, 0.0052f,
+                TextAlignmentOptions.Center, Vector2.zero, Vector2.one, FontStyles.Bold);
+            RectTransform commentInput = CreateRoundedPanel("CommentInput", comments, DividerColor,
+                new Vector2(0.17f, 0.12f), new Vector2(0.965f, 0.52f), 0.45f);
+            CreateText("Placeholder", commentInput, "Add a comment...", SecondaryTextColor, 0.0052f,
+                TextAlignmentOptions.MidlineLeft, new Vector2(0.05f, 0f), new Vector2(0.95f, 1f));
 
             LayoutViewerDetails();
-
-            RectTransform bottomBar = CreateImage("PlayerBottomBar", viewerRoot, ScreenColor,
-                Vector2.zero, new Vector2(1f, 0.118f));
-            CreateImage("TopDivider", bottomBar, DividerColor, new Vector2(0f, 0.97f), Vector2.one);
-            RectTransform back = CreateRoundedPanel("Back", bottomBar, RaisedColor,
-                new Vector2(0.045f, 0.18f), new Vector2(0.42f, 0.8f), 0.12f);
-            RoundedRectGraphic backGraphic = back.GetComponent<RoundedRectGraphic>();
-            backGraphic.raycastTarget = true;
-            Button backButton = back.gameObject.AddComponent<Button>();
-            backButton.targetGraphic = backGraphic;
-            backButton.colors = CreateButtonColors(RaisedColor);
-            backButton.onClick.AddListener(HideViewer);
-            CreateText("Icon", back, "<", TextColor, 0.011f, TextAlignmentOptions.Center,
-                new Vector2(0.04f, 0.05f), new Vector2(0.29f, 0.95f), FontStyles.Bold);
-            CreateText("Label", back, "Back", TextColor, 0.0075f, TextAlignmentOptions.MidlineLeft,
-                new Vector2(0.3f, 0.05f), new Vector2(0.94f, 0.95f), FontStyles.Bold);
         }
 
         private void ConfigureFrameSequence(VideoLibraryData.VideoEntry video)
@@ -689,19 +955,155 @@ namespace GreekProject.UI
             }
 
             RectTransform details = viewerTitle.rectTransform.parent as RectTransform;
-            SetTopRect(viewerTitle.rectTransform, 0.018f, 0.018f, 0.035f);
-            SetTopRect(viewerMetadata.rectTransform, 0.018f, 0.058f, 0.015f);
-            SetTopRect(viewerDescription.rectTransform, 0.018f, 0.081f, 0.035f);
+            const float contentLeft = 0.006f;
+            SetTopRect(viewerTitle.rectTransform, contentLeft, 0.006f, 0.014f, -1f, 0.006f);
+            SetTopRect(viewerMetadata.rectTransform, contentLeft, 0.021f, 0.009f, -1f, 0.006f);
+            viewerDescription.gameObject.SetActive(false);
 
             RectTransform divider = details.Find("ChannelDivider") as RectTransform;
-            SetTopRect(divider, 0f, 0.13f, 0.002f);
+            SetTopRect(divider, 0f, 0.034f, 0.001f, -1f, 0f);
 
             RectTransform avatar = details.Find("ChannelAvatar") as RectTransform;
-            SetTopRect(avatar, 0.018f, 0.145f, 0.034f, 0.034f);
-            SetTopRect(viewerChannel.rectTransform, 0.062f, 0.145f, 0.034f);
+            SetTopRect(avatar, contentLeft, 0.039f, 0.015f, 0.015f);
+            viewerChannel.gameObject.SetActive(false);
+            viewerSubscribers.gameObject.SetActive(false);
+            SetTopRect(details.Find("Subscribe") as RectTransform, 0.029f, 0.0375f, 0.018f, 0.049f);
+            SetTopRect(details.Find("LikeAction") as RectTransform, 0.081f, 0.0375f, 0.018f, 0.044f);
+            SetTopRect(details.Find("DislikeAction") as RectTransform, 0.129f, 0.0375f, 0.018f, 0.034f);
+            SetTopRect(details.Find("Share") as RectTransform, 0.167f, 0.0375f, 0.018f, 0.018f);
+            SetTopRect(details.Find("More") as RectTransform, 0.188f, 0.0375f, 0.018f, 0.017f);
+            SetTopRect(details.Find("Comments") as RectTransform, 0.004f, 0.063f, 0.044f, -1f, 0.004f);
         }
 
-        private static void SetTopRect(RectTransform rect, float left, float top, float height, float width = -1f)
+        private void BindViewerFromScene(Transform template)
+        {
+            viewerRoot = template.Find("VideoPlayerView") as RectTransform;
+            if (viewerRoot == null)
+            {
+                return;
+            }
+
+            Transform stage = viewerRoot.Find("VideoStage");
+            Transform details = viewerRoot.Find("VideoDetails");
+            viewerThumbnail = stage?.Find("Thumbnail")?.GetComponent<Image>();
+            viewerMockNumber = stage?.Find("Thumbnail/MockImageNumber")?.GetComponent<TextMeshProUGUI>();
+            viewerVideoSurface = stage?.Find("VideoSurface")?.GetComponent<RawImage>();
+            viewerVideoAspect = stage?.Find("VideoSurface")?.GetComponent<AspectRatioFitter>();
+            playPauseButton = stage?.Find("PlayButton")?.GetComponent<Button>();
+            playPauseIcon = stage?.Find("PlayButton")?.GetComponent<PlaybackControlGraphic>();
+            progressSlider = stage?.Find("ProgressTrack")?.GetComponent<Slider>();
+            viewerTitle = details?.Find("Title")?.GetComponent<TextMeshProUGUI>();
+            viewerMetadata = details?.Find("Metadata")?.GetComponent<TextMeshProUGUI>();
+            viewerDescription = details?.Find("Description")?.GetComponent<TextMeshProUGUI>();
+            viewerChannel = details?.Find("Channel")?.GetComponent<TextMeshProUGUI>();
+            viewerSubscribers = details?.Find("Subscribers")?.GetComponent<TextMeshProUGUI>();
+            viewerLikes = details?.Find("LikeAction/Count")?.GetComponent<TextMeshProUGUI>();
+            viewerCommentCount = details?.Find("Comments/Count")?.GetComponent<TextMeshProUGUI>();
+            viewerChannelInitial = details?.Find("ChannelAvatar/Initial")?.GetComponent<TextMeshProUGUI>();
+            viewerChannelAvatar = details?.Find("ChannelAvatar/Photo")?.GetComponent<Image>();
+
+            TextMeshProUGUI viewerMore = details?.Find("More")?.GetComponent<TextMeshProUGUI>();
+            if (viewerMore != null)
+            {
+                viewerMore.raycastTarget = true;
+                Button viewerMoreButton = viewerMore.GetComponent<Button>();
+                if (viewerMoreButton == null)
+                {
+                    viewerMoreButton = viewerMore.gameObject.AddComponent<Button>();
+                }
+
+                viewerMoreButton.targetGraphic = viewerMore;
+                viewerMoreButton.transition = Selectable.Transition.ColorTint;
+                viewerMoreButton.colors = CreateButtonColors(Color.white);
+                viewerMoreButton.onClick.RemoveListener(ToggleViewerVideoOptions);
+                viewerMoreButton.onClick.AddListener(ToggleViewerVideoOptions);
+            }
+
+            if (playPauseButton != null)
+            {
+                playPauseButton.onClick.RemoveListener(TogglePlayback);
+                playPauseButton.onClick.AddListener(TogglePlayback);
+            }
+
+            if (progressSlider != null)
+            {
+                progressSlider.onValueChanged.RemoveListener(SeekVideo);
+                progressSlider.onValueChanged.AddListener(SeekVideo);
+            }
+
+            Button homeButton = template.Find("Header/Logo")?.GetComponent<Button>();
+            if (homeButton != null)
+            {
+                homeButton.onClick.RemoveListener(HideViewer);
+                homeButton.onClick.AddListener(HideViewer);
+            }
+        }
+
+        private void ToggleViewerVideoOptions()
+        {
+            if (activeVideo == null)
+            {
+                return;
+            }
+
+            videoCards.TryGetValue(activeVideo, out RectTransform card);
+            ToggleVideoOptionsPanel(card, true);
+        }
+
+        private string GetSequenceDurationLabel(VideoLibraryData.VideoEntry video)
+        {
+            if (video == null || !frameSequences.TryGetValue(video, out FrameSequence sequence))
+            {
+                return video?.duration ?? "00:00";
+            }
+
+            int totalSeconds = Mathf.CeilToInt(sequence.FrameCount / SequenceFramesPerSecond);
+            return $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
+        }
+
+        private void LoadUploaderAvatars()
+        {
+            if (uploaderAvatars.Count > 0)
+            {
+                return;
+            }
+
+            Texture2D atlas = Resources.Load<Texture2D>("UploaderAvatars/uploader-avatar-atlas");
+            if (atlas == null)
+            {
+                Debug.LogError("Uploader avatar atlas was not found in Resources/UploaderAvatars.", this);
+                return;
+            }
+
+            int cellWidth = atlas.width / 4;
+            int cellHeight = atlas.height / 3;
+            for (int index = 0; index < 12; index++)
+            {
+                int column = index % 4;
+                int rowFromTop = index / 4;
+                Rect rect = new Rect((column * cellWidth) + 1,
+                    atlas.height - ((rowFromTop + 1) * cellHeight) + 1,
+                    cellWidth - 2, cellHeight - 2);
+                Sprite avatar = Sprite.Create(atlas, rect, new Vector2(0.5f, 0.5f), 100f, 0,
+                    SpriteMeshType.FullRect);
+                avatar.name = $"UploaderAvatar_{index:00}";
+                uploaderAvatars[index] = avatar;
+            }
+        }
+
+        private Sprite ResolveUploaderAvatar(VideoLibraryData.VideoEntry video)
+        {
+            if (video == null || video.channelAvatar != null)
+            {
+                return video?.channelAvatar;
+            }
+
+            uploaderAvatars.TryGetValue(Mathf.Clamp(video.channelAvatarIndex, 0, 11), out Sprite avatar);
+            return avatar;
+        }
+
+        private static void SetTopRect(RectTransform rect, float left, float top, float height,
+            float width = -1f, float right = 0.018f)
         {
             if (rect == null)
             {
@@ -722,7 +1124,60 @@ namespace GreekProject.UI
             rect.anchorMax = Vector2.one;
             rect.pivot = new Vector2(0.5f, 1f);
             rect.offsetMin = new Vector2(left, -top - height);
-            rect.offsetMax = new Vector2(-0.018f, -top);
+            rect.offsetMax = new Vector2(-right, -top);
+        }
+
+        private static void ConfigureUploaderAvatar(RectTransform avatar, string uploaderName, Sprite avatarSprite,
+            Color fallbackColor)
+        {
+            if (avatar == null)
+            {
+                return;
+            }
+
+            TextMeshProUGUI initial = avatar.Find("Initial")?.GetComponent<TextMeshProUGUI>();
+            RoundedRectGraphic background = avatar.GetComponent<RoundedRectGraphic>();
+            if (background != null)
+            {
+                background.color = fallbackColor;
+            }
+            Image photo = avatar.Find("Photo")?.GetComponent<Image>();
+            if (photo == null)
+            {
+                RectTransform photoRect = CreateImage("Photo", avatar, Color.white, Vector2.zero, Vector2.one);
+                photo = photoRect.GetComponent<Image>();
+                photo.preserveAspect = true;
+                photo.raycastTarget = false;
+            }
+
+            bool hasAvatar = avatarSprite != null;
+            photo.sprite = avatarSprite;
+            photo.gameObject.SetActive(hasAvatar);
+            if (initial != null)
+            {
+                initial.text = GetUploaderInitial(uploaderName);
+                initial.gameObject.SetActive(!hasAvatar);
+            }
+        }
+
+        private static string GetUploaderInitial(string uploaderName)
+        {
+            if (string.IsNullOrWhiteSpace(uploaderName))
+            {
+                return "?";
+            }
+
+            return char.ToUpperInvariant(uploaderName.TrimStart()[0]).ToString();
+        }
+
+        private static string GetChannelHandle(string uploaderName)
+        {
+            if (string.IsNullOrWhiteSpace(uploaderName))
+            {
+                return "@unknown";
+            }
+
+            return "@" + uploaderName.Replace(" ", string.Empty);
         }
 
         private void TogglePlayback()
@@ -769,7 +1224,8 @@ namespace GreekProject.UI
                 watchedPlaybackSeconds += Time.unscaledDeltaTime;
                 if (sequenceTime >= duration)
                 {
-                    sequenceTime %= duration;
+                    sequenceTime = Mathf.Repeat(sequenceTime, duration);
+                    displayedSequenceFrame = -1;
                 }
             }
 
@@ -976,7 +1432,7 @@ namespace GreekProject.UI
             {
                 RectTransform avatar = CreateRoundedPanel("AccountAvatar", parent, color,
                     new Vector2(0.37f, 0.46f), new Vector2(0.63f, 0.76f), 0.5f);
-                CreateText("Initial", avatar, "A", TextColor, 0.0075f, TextAlignmentOptions.Center,
+                CreateText("Initial", avatar, "A", Color.white, 0.0075f, TextAlignmentOptions.Center,
                     Vector2.zero, Vector2.one, FontStyles.Bold);
                 return;
             }
@@ -1027,6 +1483,26 @@ namespace GreekProject.UI
             image.color = color;
             image.raycastTarget = false;
             return rect;
+        }
+
+        private static RectTransform CreateSpriteIcon(string name, Transform parent, Sprite sprite, Color color,
+            Vector2 anchorMin, Vector2 anchorMax)
+        {
+            RectTransform rect = CreateImage(name, parent, color, anchorMin, anchorMax);
+            Image image = rect.GetComponent<Image>();
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            return rect;
+        }
+
+        private static Sprite LoadEditorIcon(string iconName)
+        {
+#if UNITY_EDITOR
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(
+                $"Assets/1_Internal/Prefab/UI/Icon/{iconName}.png");
+#else
+            return null;
+#endif
         }
 
         private static RectTransform CreateRoundedPanel(string name, Transform parent, Color color,

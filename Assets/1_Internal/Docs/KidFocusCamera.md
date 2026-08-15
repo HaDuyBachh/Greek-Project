@@ -23,26 +23,51 @@ Trong camera tong:
 - Khi dang phong to, giu chuot trai va keo hoac cham-keo mot ngon de di chuyen tam nhin.
 - Khi thu ve muc rong nhat, camera tu dua tam nhin ve vi tri goc.
 
-`Main_room` lay transform va FOV trong scene tai luc khoi dong lam gioi han rong nhat. Zoom-out khong the vuot FOV nay; khi ve muc rong nhat, pan offset duoc xoa va camera tro ve chinh xac vi tri/rotation ban dau.
+### Chinh zoom `Main_room` tren Inspector
+
+Chon `Controller/CameraController/Main_room Controller`, sau do chinh component `MainRoomCameraController`:
+
+- `Minimum Fov`: muc phong to toi da; so cang nho thi camera cang zoom gan.
+- `Wheel Zoom Sensitivity`: he so quy doi input cuon chuot sang FOV.
+- `Wheel Zoom Speed Multiplier`: toc do zoom tong; so cang lon thi zoom cang nhanh.
+- `Pinch Zoom Sensitivity`: toc do zoom khi pinch hai ngon.
+- `Zoom Smooth Time`: do tre khi camera tien den FOV dich; so cang nho thi phan hoi cang nhanh, dat `0` de zoom ngay. Scene hien dat `0.15` giay de zoom muot.
+- `Pan Smooth Time`: chi dieu khien do muot cua pan, khong lam cham zoom. Scene hien dat `0.05` giay de thao tac keo bam tay, it quan tinh.
+- `Limit To Original View`: khoa zoom-out va pan trong footprint ma `Main_room` nhin thay truoc khi Play.
+- `Navigation Plane Y`: do cao world-space cua mat san dung de tinh footprint; scene hien dung `Y = 0`.
+
+Tat ca component va reference camera phai duoc gan san trong scene truoc khi Play. Controller khong tu them component, khong tu nap asset va khong tu gan vao object luc runtime.
+
+`Main_room` lay transform, FOV va footprint tren `Navigation Plane Y` trong scene tai luc khoi dong lam gioi han goc. Zoom-out khong the vuot FOV nay. Khi zoom vao, khoang pan hop le duoc co theo footprint con lai; camera khong duoc keo de khung hinh vuot ra ngoai footprint goc. Khi ve muc rong nhat, pan offset duoc xoa va camera tro ve chinh xac vi tri/rotation ban dau.
 
 Vung click duoc tinh quanh vi tri man hinh cua `focus_point`, khong phu thuoc vao collider cua model.
 Vung hover dung chung cach tinh nay va chi cho phep mot Kid hien outline tai mot thoi diem.
 
 ## Cau truc scene
 
-Component `KidFocusCameraController` duoc gan vao object rieng `Controller/CameraController` de cac tham so camera co the duoc dieu chinh tap trung trong Inspector. Object `Cameras` chi dung lam parent cua hai camera:
+Hai camera duoc tach thanh hai GameObject quan ly rieng trong scene:
 
-- `Overview Camera`: `Main_room`
-- `Focus Camera`: `Kid_Forcus`
+```text
+Controller
++-- CameraController
+    +-- Main_room Controller     MainRoomCameraController
+    +-- Kid_Forcus Controller    KidFocusCameraController
+```
+
+`Main_room Controller` chi quan ly zoom, pan va collision cua camera tong. `Kid_Forcus Controller` chi quan ly chon Kid, orbit, collision camera focus va PhoneScreen. Object `Cameras` chi dung lam parent transform cua hai camera that:
+
+- `MainRoomCameraController > Controlled Camera`: `Main_room`
+- `KidFocusCameraController > Main Room Controller`: `Main_room Controller`
+- `KidFocusCameraController > Focus Camera`: `Kid_Forcus`
 - `Chat Ui Controller`: `Controller/ChatUIFollowController`
 - `Kids`: danh sach Kid co the focus, moi phan tu gom `kidId`, `kidRoot`, `focusPoint`
 - `Outline`: component QuickOutline tren root cua Kid
 
-Khi them Kid moi, them Kid vao `ChatUIFollowController.kids`; camera controller se tu dong lay Kid do. Kid moi can co child `focus_point` voi tag `focus`, dat o tam mat/nguc tuy khung hinh mong muon. Neu root Kid chua co `Outline`, controller se tu them va tat no cho den khi nguoi choi re chuot vao Kid.
+Khi them Kid moi, gan Kid do vao ca `ChatUIFollowController.kids` va danh sach `Kids` tren `Kid_Forcus Controller` truoc khi Play. Kid moi can co child `focus_point` voi tag `focus`, dat o tam mat/nguc tuy khung hinh mong muon, va component `Outline` duoc gan san tren root Kid.
 
 Vi tri focus mac dinh duoc tinh tu `focus_point.forward`: camera nam phia truoc Kid va luon quay nguoc lai nhin vao `focus_point`. Goc orbit cua nguoi choi duoc giu theo huong cua Kid khi Kid xoay hoac di chuyen.
 
-Project hien khong co package Cinemachine. Orbit, pan va zoom duoc xu ly boi `KidFocusCameraController` de tranh them dependency trong khi van giu duoc chuyen dong damping muot.
+Project hien khong co package Cinemachine. Orbit duoc xu ly boi `KidFocusCameraController`; pan va zoom duoc xu ly rieng boi `MainRoomCameraController`.
 
 ## Camera Collision
 
@@ -61,3 +86,5 @@ Project hien khong co package Cinemachine. Orbit, pan va zoom duoc xu ly boi `Ki
 - `Phone Slide Smooth Time`: `0.25` giay
 
 Khi quay ve `Main_room` hoac doi sang Kid khac, `PhoneScreen` tu ha xuong. Cac he thong UI khac co the goi `SetPhoneScreenVisible(bool)` thay cho phim `Space`.
+
+Reference `Phone Screen` tren `Kid_Forcus Controller` phai tro truc tiep den `Kid_Forcus/PhoneScreen`. `PhoneScreen.Canvas > World Camera` phai tro den camera `Kid_Forcus`; ca hai reference nay duoc luu san trong scene. Neu `Phone Screen` bi mat reference, UI co the van nam trong khung hinh theo transform nhung controller se coi phone dang dong va `PhoneVideoFeedUI` se tat `VideoPlayerView` ngay sau khi card duoc click.

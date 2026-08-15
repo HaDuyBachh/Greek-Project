@@ -20,12 +20,20 @@ namespace GreekProject.Content
         {
             public string id;
             public string title;
+            [Tooltip("Uploader name displayed for this video.")]
             public string channel;
+            [Tooltip("Optional uploader avatar. Leave empty to display the uploader initial.")]
+            public Sprite channelAvatar;
+            [Range(0, 11)] public int channelAvatarIndex;
+            [Tooltip("Fallback logo color used when the uploader has no avatar sprite.")]
+            public Color channelColor = new Color(1f, 0f, 0.2f, 1f);
+            public string subscribers;
             public string description;
             public string views;
             public string published;
             public string duration;
             public string likes;
+            public string comments;
             public Sprite thumbnail;
             public VideoClip videoClip;
             public RenderTexture outputTexture;

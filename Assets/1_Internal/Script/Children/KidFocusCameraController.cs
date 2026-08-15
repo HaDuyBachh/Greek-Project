@@ -22,7 +22,7 @@ public class KidFocusCameraController : MonoBehaviour
     }
 
     [Header("Cameras")]
-    [SerializeField] private Camera overviewCamera;
+    [SerializeField] private MainRoomCameraController mainRoomController;
     [SerializeField] private Camera focusCamera;
     [SerializeField] private ChatUIFollowController chatUiController;
 
@@ -41,20 +41,10 @@ public class KidFocusCameraController : MonoBehaviour
     [SerializeField, Min(0f)] private float positionSmoothTime = 0.12f;
     [SerializeField, Min(0f)] private float rotationSharpness = 18f;
 
-    [Header("Overview Navigation")]
-    [SerializeField, Min(1f)] private float minimumOverviewFov = 30f;
-    [SerializeField, Min(0.001f)] private float wheelZoomSensitivity = 0.035f;
-    [SerializeField, Min(0.001f)] private float pinchZoomSensitivity = 0.03f;
-    [SerializeField, Min(0.001f)] private float panUnitsPerPixel = 0.008f;
-    [SerializeField, Min(0f)] private float maximumPanDistance = 8f;
-    [SerializeField, Min(0f)] private float overviewSmoothTime = 0.15f;
-
-    [Header("Camera Collision")]
-    [SerializeField] private Transform wallRoot;
+    [Header("Focus Camera Collision")]
     [SerializeField] private LayerMask cameraCollisionMask = 1 << 6;
     [SerializeField, Min(0.01f)] private float cameraCollisionRadius = 0.12f;
     [SerializeField, Min(0f)] private float cameraWallPadding = 0.05f;
-    [SerializeField] private bool assignWallCollidersToLayer;
 
     [Header("Focus Phone Screen")]
     [SerializeField] private Transform phoneScreen;
@@ -68,13 +58,6 @@ public class KidFocusCameraController : MonoBehaviour
     private KidFocusTarget selectedKid;
     private KidFocusTarget hoveredKid;
     private Vector3 followVelocity;
-    private Vector3 overviewHomePosition;
-    private Quaternion overviewHomeRotation;
-    private Vector3 overviewPanOffset;
-    private Vector3 overviewPositionVelocity;
-    private float overviewHomeFov;
-    private float targetOverviewFov;
-    private float overviewFovVelocity;
     private float orbitYaw;
     private float orbitPitch;
     private float phoneTargetLocalY;
@@ -85,6 +68,7 @@ public class KidFocusCameraController : MonoBehaviour
     public string SelectedKidId => selectedKid != null ? selectedKid.kidId : string.Empty;
     public bool IsFocusing => selectedKid != null;
     public bool IsPhoneScreenVisible => isPhoneScreenVisible;
+    private Camera OverviewCamera => mainRoomController != null ? mainRoomController.ControlledCamera : null;
 
     public void RegisterViewedVideo(VideoContentEffect effect)
     {
@@ -93,22 +77,28 @@ public class KidFocusCameraController : MonoBehaviour
 
     private void Awake()
     {
+        ValidateSceneReferences();
         PrepareOutlines();
-        PrepareCameraCollision();
-        InitializeCameraState();
+        orbitPitch = Mathf.Clamp(defaultOrbitPitch, orbitPitchLimits.x, orbitPitchLimits.y);
         InitializePhoneScreen();
     }
 
-    public void ConfigureSceneReferences(
-        Camera overview,
-        Camera focus,
-        Transform phone,
-        ChatUIFollowController chatController)
+    private void ValidateSceneReferences()
     {
-        overviewCamera = overview;
-        focusCamera = focus;
-        phoneScreen = phone;
-        chatUiController = chatController;
+        if (mainRoomController == null)
+        {
+            Debug.LogError("Kid_Forcus Controller requires a Main Room Controller reference assigned before Play.", this);
+        }
+
+        if (focusCamera == null)
+        {
+            Debug.LogError("Kid_Forcus Controller requires the Kid_Forcus camera assigned before Play.", this);
+        }
+
+        if (phoneScreen == null)
+        {
+            Debug.LogError("Kid_Forcus Controller requires PhoneScreen assigned before Play.", this);
+        }
     }
 
     private void Update()
@@ -155,18 +145,18 @@ public class KidFocusCameraController : MonoBehaviour
 
         if (Pointer.current == null || !Pointer.current.press.wasPressedThisFrame)
         {
-            UpdateCameraInput();
+            UpdateFocusOrbitInput();
             return;
         }
 
         if (ignoreClicksOverUi && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
         {
-            UpdateCameraInput();
+            UpdateFocusOrbitInput();
             return;
         }
 
         TryFocusAtScreenPosition(Pointer.current.position.ReadValue());
-        UpdateCameraInput();
+        UpdateFocusOrbitInput();
     }
 
     private bool WasPhoneTogglePressed()
@@ -182,7 +172,6 @@ public class KidFocusCameraController : MonoBehaviour
 
     private void LateUpdate()
     {
-        UpdateOverviewCamera();
         UpdatePhoneScreen();
 
         if (selectedKid == null || !selectedKid.IsValid || focusCamera == null)
@@ -244,18 +233,18 @@ public class KidFocusCameraController : MonoBehaviour
         followVelocity = Vector3.zero;
         SetPhoneScreenVisible(false);
 
-        SetCameraActive(overviewCamera, true);
+        SetCameraActive(OverviewCamera, true);
         SetCameraActive(focusCamera, false);
 
-        if (chatUiController != null && overviewCamera != null)
+        if (chatUiController != null && OverviewCamera != null)
         {
-            chatUiController.SetProjectionCamera(overviewCamera);
+            chatUiController.SetProjectionCamera(OverviewCamera);
         }
     }
 
     private void TryFocusAtScreenPosition(Vector2 screenPosition)
     {
-        Camera selectionCamera = IsFocusing ? focusCamera : overviewCamera;
+        Camera selectionCamera = IsFocusing ? focusCamera : OverviewCamera;
         KidFocusTarget nearestKid = FindKidAtScreenPosition(selectionCamera, screenPosition);
 
         if (nearestKid != null)
@@ -272,7 +261,7 @@ public class KidFocusCameraController : MonoBehaviour
             return;
         }
 
-        Camera selectionCamera = IsFocusing ? focusCamera : overviewCamera;
+        Camera selectionCamera = IsFocusing ? focusCamera : OverviewCamera;
         SetHoveredKid(FindKidAtScreenPosition(selectionCamera, Pointer.current.position.ReadValue()));
     }
 
@@ -350,7 +339,7 @@ public class KidFocusCameraController : MonoBehaviour
 
         LookAtSelectedKid(true);
 
-        SetCameraActive(overviewCamera, false);
+        SetCameraActive(OverviewCamera, false);
         SetCameraActive(focusCamera, true);
 
         if (chatUiController != null)
@@ -384,69 +373,20 @@ public class KidFocusCameraController : MonoBehaviour
         }
     }
 
-    private void UpdateCameraInput()
+    private void UpdateFocusOrbitInput()
     {
         bool pointerOverUi = ignoreClicksOverUi && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-        if (pointerOverUi)
+        if (pointerOverUi || !IsFocusing)
         {
             return;
         }
 
-        if (IsFocusing)
-        {
-            Vector2 orbitDelta = GetSinglePointerDragDelta();
-            orbitYaw += orbitDelta.x * orbitSensitivity;
-            orbitPitch = Mathf.Clamp(
-                orbitPitch + orbitDelta.y * orbitSensitivity,
-                orbitPitchLimits.x,
-                orbitPitchLimits.y);
-            return;
-        }
-
-        UpdateOverviewZoom();
-
-        if (targetOverviewFov >= overviewHomeFov - 0.1f)
-        {
-            overviewPanOffset = Vector3.zero;
-            return;
-        }
-
-        Vector2 panDelta = GetSinglePointerDragDelta();
-        if (panDelta.sqrMagnitude <= 0f || overviewCamera == null)
-        {
-            return;
-        }
-
-        Vector3 planeRight = Vector3.ProjectOnPlane(overviewCamera.transform.right, Vector3.up).normalized;
-        Vector3 planeForward = Vector3.ProjectOnPlane(overviewCamera.transform.forward, Vector3.up).normalized;
-        float zoomScale = targetOverviewFov / Mathf.Max(overviewHomeFov, 0.01f);
-        overviewPanOffset += (-planeRight * panDelta.x - planeForward * panDelta.y) * panUnitsPerPixel * zoomScale;
-        overviewPanOffset = Vector3.ClampMagnitude(overviewPanOffset, maximumPanDistance);
-    }
-
-    private void UpdateOverviewZoom()
-    {
-        if (overviewCamera == null)
-        {
-            return;
-        }
-
-        float zoomDelta = 0f;
-        if (Mouse.current != null)
-        {
-            zoomDelta += Mouse.current.scroll.ReadValue().y * wheelZoomSensitivity;
-        }
-
-        if (TryGetPinchDelta(out float pinchDelta))
-        {
-            zoomDelta += pinchDelta * pinchZoomSensitivity;
-        }
-
-        float minimumFov = Mathf.Min(minimumOverviewFov, overviewHomeFov);
-        targetOverviewFov = Mathf.Clamp(
-            targetOverviewFov - zoomDelta,
-            minimumFov,
-            overviewHomeFov);
+        Vector2 orbitDelta = GetSinglePointerDragDelta();
+        orbitYaw += orbitDelta.x * orbitSensitivity;
+        orbitPitch = Mathf.Clamp(
+            orbitPitch + orbitDelta.y * orbitSensitivity,
+            orbitPitchLimits.x,
+            orbitPitchLimits.y);
     }
 
     private Vector2 GetSinglePointerDragDelta()
@@ -464,47 +404,6 @@ public class KidFocusCameraController : MonoBehaviour
         return Vector2.zero;
     }
 
-    private bool TryGetPinchDelta(out float pinchDelta)
-    {
-        pinchDelta = 0f;
-        if (Touchscreen.current == null)
-        {
-            return false;
-        }
-
-        TouchControl firstTouch = null;
-        TouchControl secondTouch = null;
-        foreach (TouchControl touch in Touchscreen.current.touches)
-        {
-            if (!touch.press.isPressed)
-            {
-                continue;
-            }
-
-            if (firstTouch == null)
-            {
-                firstTouch = touch;
-            }
-            else
-            {
-                secondTouch = touch;
-                break;
-            }
-        }
-
-        if (firstTouch == null || secondTouch == null)
-        {
-            return false;
-        }
-
-        Vector2 firstPosition = firstTouch.position.ReadValue();
-        Vector2 secondPosition = secondTouch.position.ReadValue();
-        Vector2 firstPrevious = firstPosition - firstTouch.delta.ReadValue();
-        Vector2 secondPrevious = secondPosition - secondTouch.delta.ReadValue();
-        pinchDelta = Vector2.Distance(firstPosition, secondPosition) - Vector2.Distance(firstPrevious, secondPrevious);
-        return true;
-    }
-
     private int CountPressedTouches()
     {
         int count = 0;
@@ -517,72 +416,6 @@ public class KidFocusCameraController : MonoBehaviour
         }
 
         return count;
-    }
-
-    private void UpdateOverviewCamera()
-    {
-        if (overviewCamera == null)
-        {
-            return;
-        }
-
-        targetOverviewFov = Mathf.Clamp(
-            targetOverviewFov,
-            Mathf.Min(minimumOverviewFov, overviewHomeFov),
-            overviewHomeFov);
-        overviewPanOffset = Vector3.ClampMagnitude(overviewPanOffset, maximumPanDistance);
-
-        if (targetOverviewFov >= overviewHomeFov - 0.001f)
-        {
-            targetOverviewFov = overviewHomeFov;
-            overviewPanOffset = Vector3.zero;
-        }
-
-        Vector3 targetPosition = overviewHomePosition + overviewPanOffset;
-        Vector3 nextPosition;
-        if (overviewSmoothTime <= 0f)
-        {
-            nextPosition = targetPosition;
-            overviewCamera.fieldOfView = targetOverviewFov;
-        }
-        else
-        {
-            nextPosition = Vector3.SmoothDamp(
-                overviewCamera.transform.position,
-                targetPosition,
-                ref overviewPositionVelocity,
-                overviewSmoothTime);
-            overviewCamera.fieldOfView = Mathf.SmoothDamp(
-                overviewCamera.fieldOfView,
-                targetOverviewFov,
-                ref overviewFovVelocity,
-                overviewSmoothTime);
-        }
-
-        Vector3 collisionSafePosition = ResolveMovementCollision(overviewCamera.transform.position, nextPosition);
-        overviewCamera.transform.position = collisionSafePosition;
-        overviewCamera.fieldOfView = Mathf.Clamp(
-            overviewCamera.fieldOfView,
-            Mathf.Min(minimumOverviewFov, overviewHomeFov),
-            overviewHomeFov);
-
-        if (collisionSafePosition != nextPosition)
-        {
-            overviewPanOffset = Vector3.ClampMagnitude(collisionSafePosition - overviewHomePosition, maximumPanDistance);
-            overviewPositionVelocity = Vector3.zero;
-        }
-
-        if (targetOverviewFov == overviewHomeFov &&
-            Vector3.SqrMagnitude(overviewCamera.transform.position - overviewHomePosition) < 0.000001f &&
-            Mathf.Abs(overviewCamera.fieldOfView - overviewHomeFov) < 0.001f)
-        {
-            overviewCamera.transform.position = overviewHomePosition;
-            overviewCamera.fieldOfView = overviewHomeFov;
-            overviewPositionVelocity = Vector3.zero;
-            overviewFovVelocity = 0f;
-        }
-
-        overviewCamera.transform.rotation = overviewHomeRotation;
     }
 
     private Vector3 ResolveFocusCameraCollision(Vector3 origin, Vector3 desiredPosition)
@@ -605,31 +438,6 @@ public class KidFocusCameraController : MonoBehaviour
         {
             float safeDistance = Mathf.Max(0.01f, hit.distance - cameraWallPadding);
             return origin + offset.normalized * safeDistance;
-        }
-
-        return desiredPosition;
-    }
-
-    private Vector3 ResolveMovementCollision(Vector3 currentPosition, Vector3 desiredPosition)
-    {
-        Vector3 movement = desiredPosition - currentPosition;
-        float distance = movement.magnitude;
-        if (distance <= 0.0001f)
-        {
-            return desiredPosition;
-        }
-
-        if (Physics.SphereCast(
-                currentPosition,
-                cameraCollisionRadius,
-                movement / distance,
-                out RaycastHit hit,
-                distance,
-                cameraCollisionMask,
-                QueryTriggerInteraction.Ignore))
-        {
-            float safeDistance = Mathf.Max(0f, hit.distance - cameraWallPadding);
-            return currentPosition + movement.normalized * safeDistance;
         }
 
         return desiredPosition;
@@ -664,47 +472,6 @@ public class KidFocusCameraController : MonoBehaviour
         }
     }
 
-    private void InitializeCameraState()
-    {
-        orbitPitch = Mathf.Clamp(defaultOrbitPitch, orbitPitchLimits.x, orbitPitchLimits.y);
-
-        if (overviewCamera == null)
-        {
-            return;
-        }
-
-        overviewHomePosition = overviewCamera.transform.position;
-        overviewHomeRotation = overviewCamera.transform.rotation;
-        overviewHomeFov = overviewCamera.fieldOfView;
-        targetOverviewFov = overviewHomeFov;
-    }
-
-    private void PrepareCameraCollision()
-    {
-        if (!assignWallCollidersToLayer || wallRoot == null)
-        {
-            return;
-        }
-
-        int mask = cameraCollisionMask.value;
-        if (mask == 0 || (mask & (mask - 1)) != 0)
-        {
-            Debug.LogWarning("Camera Collision Mask must contain exactly one layer when Assign Wall Colliders To Layer is enabled.", this);
-            return;
-        }
-
-        int wallLayer = 0;
-        while ((mask >>= 1) != 0)
-        {
-            wallLayer++;
-        }
-
-        foreach (Collider wallCollider in wallRoot.GetComponentsInChildren<Collider>(true))
-        {
-            wallCollider.gameObject.layer = wallLayer;
-        }
-    }
-
     private void InitializePhoneScreen()
     {
         phoneTargetLocalY = phoneHiddenLocalY;
@@ -712,12 +479,6 @@ public class KidFocusCameraController : MonoBehaviour
 
         if (phoneScreen != null)
         {
-            Canvas phoneCanvas = phoneScreen.GetComponent<Canvas>();
-            if (phoneCanvas != null && focusCamera != null)
-            {
-                phoneCanvas.worldCamera = focusCamera;
-            }
-
             Vector3 localPosition = phoneScreen.localPosition;
             localPosition.y = phoneTargetLocalY;
             phoneScreen.localPosition = localPosition;
