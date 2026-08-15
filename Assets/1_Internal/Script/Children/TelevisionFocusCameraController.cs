@@ -28,6 +28,7 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     [Header("Television Selection")]
     [SerializeField] private Transform televisionRoot;
     [SerializeField] private Renderer televisionRenderer;
+    [SerializeField] private Outline televisionOutline;
     [SerializeField, Min(1f)] private float televisionSelectionRadius = 190f;
 
     [Header("Kids Watching Television")]
@@ -48,6 +49,7 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     private void Awake()
     {
         ValidateSceneReferences();
+        SetTelevisionOutline(false);
         SetTelevisionInteractionEnabled(false);
     }
 
@@ -55,8 +57,11 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     {
         if (!isFocusing)
         {
+            UpdateTelevisionHover();
             return;
         }
+
+        SetTelevisionOutline(false);
 
         bool escapePressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
         bool rightClickPressed = Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
@@ -106,6 +111,7 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
         }
 
         kidFocusController?.PrepareForExternalCameraFocus();
+        SetTelevisionOutline(false);
         isFocusing = true;
         televisionCamera.gameObject.SetActive(true);
         SetTelevisionInteractionEnabled(true);
@@ -171,6 +177,30 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
         return televisionRoot != null ? televisionRoot.position : Vector3.zero;
     }
 
+    private void UpdateTelevisionHover()
+    {
+        Camera overviewCamera = OverviewCamera;
+        if (Mouse.current == null || overviewCamera == null ||
+            !overviewCamera.gameObject.activeInHierarchy)
+        {
+            SetTelevisionOutline(false);
+            return;
+        }
+
+        float nearestDistance = float.PositiveInfinity;
+        bool isHovered = TryGetScreenDistance(overviewCamera, GetTelevisionSelectionPoint(),
+            Mouse.current.position.ReadValue(), televisionSelectionRadius, ref nearestDistance);
+        SetTelevisionOutline(isHovered);
+    }
+
+    private void SetTelevisionOutline(bool enabledState)
+    {
+        if (televisionOutline != null && televisionOutline.enabled != enabledState)
+        {
+            televisionOutline.enabled = enabledState;
+        }
+    }
+
     private static bool TryGetScreenDistance(Camera camera, Vector3 worldPosition, Vector2 pointerPosition,
         float selectionRadius, ref float nearestDistance)
     {
@@ -203,7 +233,8 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     private void ValidateSceneReferences()
     {
         if (mainRoomController == null || kidFocusController == null || televisionCamera == null ||
-            televisionRoot == null || televisionRenderer == null || televisionCanvas == null ||
+            televisionRoot == null || televisionRenderer == null || televisionOutline == null ||
+            televisionCanvas == null ||
             televisionRaycaster == null || televisionFeed == null)
         {
             Debug.LogError("TV_Forcus Controller requires all scene references assigned before Play.", this);

@@ -229,6 +229,9 @@ pan va collision cua camera tong. `KidFocusCameraController` tren
 tuong tac voi TV UI:
 
 - Click truc tiep vao `TV LED 30¨` tu `Main_room` se vao `TV_Forcus`.
+- `Outline` cua TV tat o trang thai binh thuong va chi bat khi con tro chuot nam
+  trong vung chon TV tren camera `Main_room`; outline tat ngay khi roi hover hoac
+  khi da chuyen vao `TV_Forcus`.
 - Click Kid dang ngoi tai mot trong cac `Television Seats` va dang chay animation
   nam trong `Television Animations` cung se vao `TV_Forcus`. Scene hien gan ba
   ghe sofa va animation `SitChairIdle`; cac dieu kien nay deu sua duoc tren Inspector.
