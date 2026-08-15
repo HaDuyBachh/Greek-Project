@@ -32,6 +32,8 @@ public class KidFocusCameraController : MonoBehaviour
     [Header("Selection")]
     [SerializeField, Min(1f)] private float screenSelectionRadius = 140f;
     [SerializeField] private bool ignoreClicksOverUi = true;
+    [SerializeField, Tooltip("Pause the selected Kid's random activity while Kid_Forcus follows it.")]
+    private bool pauseFocusedKidActivity = true;
 
     [Header("Focus Orbit")]
     [SerializeField, Min(0.1f)] private float focusDistance = 1.35f;
@@ -229,9 +231,10 @@ public class KidFocusCameraController : MonoBehaviour
             return;
         }
 
+        SetPhoneScreenVisible(false);
+        SetFocusedKidActivityPaused(selectedKid, false);
         selectedKid = null;
         followVelocity = Vector3.zero;
-        SetPhoneScreenVisible(false);
 
         SetCameraActive(OverviewCamera, true);
         SetCameraActive(focusCamera, false);
@@ -327,6 +330,11 @@ public class KidFocusCameraController : MonoBehaviour
         }
 
         bool isChangingFocus = selectedKid != kid;
+        if (isChangingFocus)
+        {
+            SetFocusedKidActivityPaused(selectedKid, false);
+        }
+
         selectedKid = kid;
         followVelocity = Vector3.zero;
         orbitYaw = 0f;
@@ -335,6 +343,7 @@ public class KidFocusCameraController : MonoBehaviour
         if (isChangingFocus)
         {
             SetPhoneScreenVisible(false);
+            SetFocusedKidActivityPaused(selectedKid, true);
         }
 
         LookAtSelectedKid(true);
@@ -462,6 +471,8 @@ public class KidFocusCameraController : MonoBehaviour
     private void OnDisable()
     {
         SetHoveredKid(null);
+        SetPhoneScreenVisible(false);
+        SetFocusedKidActivityPaused(selectedKid, false);
     }
 
     private void OnApplicationFocus(bool hasFocus)
@@ -518,6 +529,14 @@ public class KidFocusCameraController : MonoBehaviour
             ? phoneShownLocalY
             : phoneHiddenLocalY;
         phoneSlideVelocity = 0f;
+    }
+
+    private void SetFocusedKidActivityPaused(KidFocusTarget kid, bool shouldPause)
+    {
+        if (pauseFocusedKidActivity && kid != null && kid.activityController != null)
+        {
+            kid.activityController.SetPausedForFocus(shouldPause);
+        }
     }
 
     private void UpdatePhoneScreen()

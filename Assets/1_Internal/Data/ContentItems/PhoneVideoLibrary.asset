@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GreekProject.Content.VideoLibraryData
   videos:
   - id: video-01
+    sourceStem: bainrot02
     title: The Strongest Orange Family
     channel: Citrus Flex
     channelAvatar: {fileID: 0}
@@ -23,7 +24,7 @@ MonoBehaviour:
     description: A fast AI character loop from the brainrot collection.
     views: 209K views
     published: 1 day ago
-    duration: 00:58
+    duration: 00:05
     likes: 14K
     comments: 710
     thumbnail: {fileID: 21300000, guid: 39fafc7764a24fd4781f15454e57e8da, type: 3}
@@ -33,6 +34,7 @@ MonoBehaviour:
     mockImageNumber: 1
     mockColor: {r: 0.93, g: 0.31, b: 0.26, a: 1}
   - id: video-02
+    sourceStem: bainrot06
     title: Refrigerator Camels Downtown
     channel: Desert Dash
     channelAvatar: {fileID: 0}
@@ -42,7 +44,7 @@ MonoBehaviour:
     description: A surreal AI character loop from the brainrot collection.
     views: 86K views
     published: 3 days ago
-    duration: 00:30
+    duration: 00:04
     likes: 8.6K
     comments: 438
     thumbnail: {fileID: 21300000, guid: 1b671a8ed6f989b4c9575b184183fffe, type: 3}
@@ -52,6 +54,7 @@ MonoBehaviour:
     mockImageNumber: 2
     mockColor: {r: 0.18, g: 0.48, b: 0.91, a: 1}
   - id: video-03
+    sourceStem: bainrot01
     title: Banana Monkeys in the Jungle
     channel: Jungle Byte
     channelAvatar: {fileID: 0}
@@ -64,13 +67,14 @@ MonoBehaviour:
     duration: 00:05
     likes: 5.2K
     comments: 284
-    thumbnail: {fileID: 21300000, guid: e9231dd543a11ac4488f9eca87a192ac, type: 3}
+    thumbnail: {fileID: 21300000, guid: 6c595ad0b04aa664e98c534db771cd56, type: 3}
     videoClip: {fileID: 32900000, guid: b2813d089d8124947b92a6d8c8c9df03, type: 3}
     outputTexture: {fileID: 8400000, guid: d1030000000000000000000000000003, type: 2}
     contentEffect: 1
     mockImageNumber: 3
     mockColor: {r: 0.96, g: 0.62, b: 0.12, a: 1}
   - id: video-04
+    sourceStem: brainrot03
     title: The Forest Family Mystery
     channel: Mossy Mystery
     channelAvatar: {fileID: 0}
@@ -80,7 +84,7 @@ MonoBehaviour:
     description: A strange AI forest loop from the brainrot collection.
     views: 31K views
     published: 2 weeks ago
-    duration: 00:53
+    duration: 00:04
     likes: 3.1K
     comments: 196
     thumbnail: {fileID: 21300000, guid: 6b6cb28762ddc37478bc093814d135aa, type: 3}
@@ -90,6 +94,7 @@ MonoBehaviour:
     mockImageNumber: 4
     mockColor: {r: 0.12, g: 0.68, b: 0.47, a: 1}
   - id: video-05
+    sourceStem: brainrot04
     title: Ninja Coffee Cups at Midnight
     channel: Midnight Mug
     channelAvatar: {fileID: 0}
@@ -99,7 +104,7 @@ MonoBehaviour:
     description: A fast AI action loop from the brainrot collection.
     views: 440K views
     published: 2 days ago
-    duration: 00:40
+    duration: 00:04
     likes: 32K
     comments: 1.4K
     thumbnail: {fileID: 21300000, guid: 8c334bf48e759dd4c87020984dd7c177, type: 3}
@@ -109,6 +114,7 @@ MonoBehaviour:
     mockImageNumber: 5
     mockColor: {r: 0.55, g: 0.34, b: 0.88, a: 1}
   - id: video-06
+    sourceStem: brainrot05
     title: Sausage Family Night Adventure
     channel: Snack Quest
     channelAvatar: {fileID: 0}
@@ -118,7 +124,7 @@ MonoBehaviour:
     description: A surreal AI character loop from the brainrot collection.
     views: 74K views
     published: 5 days ago
-    duration: 00:35
+    duration: 00:04
     likes: 7.4K
     comments: 352
     thumbnail: {fileID: 21300000, guid: 88f0415d95c62014594526b3e377b8f1, type: 3}
@@ -128,6 +134,7 @@ MonoBehaviour:
     mockImageNumber: 6
     mockColor: {r: 0.09, g: 0.67, b: 0.76, a: 1}
   - id: video-07
+    sourceStem: horror01
     title: Ghost in the Abandoned Hallway
     channel: Night Signal
     channelAvatar: {fileID: 0}
@@ -147,6 +154,7 @@ MonoBehaviour:
     mockImageNumber: 1
     mockColor: {r: 0.16, g: 0.19, b: 0.25, a: 1}
   - id: video-08
+    sourceStem: horror02
     title: The Little Monster Appears
     channel: Creepy Corner
     channelAvatar: {fileID: 0}
@@ -166,6 +174,7 @@ MonoBehaviour:
     mockImageNumber: 2
     mockColor: {r: 0.94, g: 0.38, b: 0.61, a: 1}
   - id: video-09
+    sourceStem: normal01
     title: A Quiet Christmas Drawing Night
     channel: Cozy Canvas
     channelAvatar: {fileID: 0}
@@ -185,6 +194,7 @@ MonoBehaviour:
     mockImageNumber: 3
     mockColor: {r: 0.72, g: 0.45, b: 0.21, a: 1}
   - id: video-10
+    sourceStem: normal02
     title: Peaceful Day at the Beach
     channel: Sunny Drift
     channelAvatar: {fileID: 0}
@@ -204,6 +214,7 @@ MonoBehaviour:
     mockImageNumber: 4
     mockColor: {r: 0.24, g: 0.55, b: 0.34, a: 1}
   - id: video-11
+    sourceStem: normal04
     title: Reindeer Across the Snowy Sky
     channel: Winter Wings
     channelAvatar: {fileID: 0}
@@ -223,6 +234,7 @@ MonoBehaviour:
     mockImageNumber: 5
     mockColor: {r: 0.19, g: 0.44, b: 0.74, a: 1}
   - id: video-12
+    sourceStem: normal05
     title: Happy Puppy Mountain Run
     channel: Paw Trail
     channelAvatar: {fileID: 0}
@@ -241,3 +253,283 @@ MonoBehaviour:
     contentEffect: 0
     mockImageNumber: 6
     mockColor: {r: 0.35, g: 0.67, b: 0.25, a: 1}
+  - id: video-13
+    sourceStem: brainrot06
+    title: Brainrot Mix 06
+    channel: Loop Reactor
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 0
+    channelColor: {r: 1, g: 0.18, b: 0.28, a: 1}
+    subscribers: 1.2M subscribers
+    description: A rapid surreal character compilation from the brainrot collection.
+    views: 682K views
+    published: 1 day ago
+    duration: 00:05
+    likes: 46K
+    comments: 2.1K
+    thumbnail: {fileID: 21300000, guid: 22d6c2407357292468b3a27d3e4be908, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 1
+    mockImageNumber: 13
+    mockColor: {r: 0.91, g: 0.24, b: 0.32, a: 1}
+  - id: video-14
+    sourceStem: brainrot07
+    title: Brainrot Mix 07
+    channel: Hyper Scroll
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 1
+    channelColor: {r: 0.95, g: 0.31, b: 0.18, a: 1}
+    subscribers: 934K subscribers
+    description: A noisy fast-cut collection of strange internet characters.
+    views: 519K views
+    published: 2 days ago
+    duration: 00:05
+    likes: 38K
+    comments: 1.8K
+    thumbnail: {fileID: 21300000, guid: 6f2f0e5bd1aef8448bbd369e91f3624f, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 1
+    mockImageNumber: 14
+    mockColor: {r: 0.98, g: 0.48, b: 0.12, a: 1}
+  - id: video-15
+    sourceStem: brainrot08
+    title: Brainrot Mix 08
+    channel: Meme Current
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 2
+    channelColor: {r: 0.72, g: 0.22, b: 0.88, a: 1}
+    subscribers: 788K subscribers
+    description: A long surreal meme compilation with rapid visual changes.
+    views: 407K views
+    published: 4 days ago
+    duration: 00:06
+    likes: 29K
+    comments: 1.3K
+    thumbnail: {fileID: 21300000, guid: 7193a6ee4c495484e9e839f3de78ac80, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 1
+    mockImageNumber: 15
+    mockColor: {r: 0.63, g: 0.29, b: 0.91, a: 1}
+  - id: video-16
+    sourceStem: brainrot09
+    title: Brainrot Mix 09
+    channel: Turbo Clips
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 3
+    channelColor: {r: 0.16, g: 0.68, b: 0.84, a: 1}
+    subscribers: 645K subscribers
+    description: An energetic sequence of absurd characters and looping sounds.
+    views: 355K views
+    published: 5 days ago
+    duration: 00:02
+    likes: 25K
+    comments: 1.1K
+    thumbnail: {fileID: 21300000, guid: 8589bcff1da34c4418075c7621f80d3c, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 1
+    mockImageNumber: 16
+    mockColor: {r: 0.12, g: 0.65, b: 0.78, a: 1}
+  - id: video-17
+    sourceStem: horror03
+    title: Something Moved in the Dark
+    channel: After Midnight
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 4
+    channelColor: {r: 0.38, g: 0.16, b: 0.55, a: 1}
+    subscribers: 512K subscribers
+    description: A dark suspense clip with an unexpected scare.
+    views: 184K views
+    published: 3 days ago
+    duration: 00:36
+    likes: 13K
+    comments: 970
+    thumbnail: {fileID: 21300000, guid: 3d4915ffea0f33e43bdc2fba99f9ac79, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 2
+    mockImageNumber: 17
+    mockColor: {r: 0.14, g: 0.12, b: 0.2, a: 1}
+  - id: video-18
+    sourceStem: horror04
+    title: Do Not Look Behind You
+    channel: Shadow Archive
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 5
+    channelColor: {r: 0.42, g: 0.12, b: 0.36, a: 1}
+    subscribers: 477K subscribers
+    description: A tense horror sequence from an abandoned location.
+    views: 166K views
+    published: 4 days ago
+    duration: 00:36
+    likes: 12K
+    comments: 841
+    thumbnail: {fileID: 21300000, guid: 825e115f1e9d575428168af6b6722f30, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 2
+    mockImageNumber: 18
+    mockColor: {r: 0.2, g: 0.1, b: 0.18, a: 1}
+  - id: video-19
+    sourceStem: horror05
+    title: The Long Hallway Recording
+    channel: Night Evidence
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 6
+    channelColor: {r: 0.28, g: 0.18, b: 0.48, a: 1}
+    subscribers: 721K subscribers
+    description: A long unsettling recording with sudden frightening moments.
+    views: 294K views
+    published: 6 days ago
+    duration: 00:04
+    likes: 21K
+    comments: 1.5K
+    thumbnail: {fileID: 21300000, guid: 3054d3b246e1bfe42bcc58ad50141eb8, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 2
+    mockImageNumber: 19
+    mockColor: {r: 0.11, g: 0.15, b: 0.24, a: 1}
+  - id: video-20
+    sourceStem: horror06
+    title: Unknown Figure on Camera
+    channel: Fear Signal
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 7
+    channelColor: {r: 0.5, g: 0.14, b: 0.3, a: 1}
+    subscribers: 608K subscribers
+    description: A disturbing found-footage clip featuring an unknown figure.
+    views: 248K views
+    published: 1 week ago
+    duration: 00:03
+    likes: 18K
+    comments: 1.2K
+    thumbnail: {fileID: 21300000, guid: ba2c7188e4176f646b67159382bc0dad, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 2
+    mockImageNumber: 20
+    mockColor: {r: 0.18, g: 0.09, b: 0.14, a: 1}
+  - id: video-21
+    sourceStem: normal06
+    title: A Small Happy Moment
+    channel: Daily Sunshine
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 8
+    channelColor: {r: 0.18, g: 0.62, b: 0.34, a: 1}
+    subscribers: 322K subscribers
+    description: A short positive clip for a calm break.
+    views: 42K views
+    published: 2 days ago
+    duration: 00:14
+    likes: 4.2K
+    comments: 186
+    thumbnail: {fileID: 21300000, guid: 03bbf9f2a32538a4ea83b90f250ebb97, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 0
+    mockImageNumber: 21
+    mockColor: {r: 0.31, g: 0.71, b: 0.42, a: 1}
+  - id: video-22
+    sourceStem: normal07
+    title: Six Seconds of Calm
+    channel: Tiny Pause
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 9
+    channelColor: {r: 0.2, g: 0.55, b: 0.74, a: 1}
+    subscribers: 284K subscribers
+    description: A peaceful animated moment with a gentle atmosphere.
+    views: 35K views
+    published: 3 days ago
+    duration: 00:06
+    likes: 3.5K
+    comments: 142
+    thumbnail: {fileID: 21300000, guid: ae8073cd8036eb741a1fe1f36723170e, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 0
+    mockImageNumber: 22
+    mockColor: {r: 0.28, g: 0.58, b: 0.78, a: 1}
+  - id: video-23
+    sourceStem: normal08
+    title: A Friendly Little Adventure
+    channel: Bright Stories
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 10
+    channelColor: {r: 0.82, g: 0.52, b: 0.16, a: 1}
+    subscribers: 391K subscribers
+    description: A cheerful short story suitable for a relaxing watch.
+    views: 58K views
+    published: 5 days ago
+    duration: 00:08
+    likes: 5.8K
+    comments: 231
+    thumbnail: {fileID: 21300000, guid: 54d75b9dea8a9f84cb250d3ca15ff9db, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 0
+    mockImageNumber: 23
+    mockColor: {r: 0.9, g: 0.62, b: 0.22, a: 1}
+  - id: video-24
+    sourceStem: normal09
+    title: Quick Creative Break
+    channel: Make and Smile
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 11
+    channelColor: {r: 0.46, g: 0.42, b: 0.82, a: 1}
+    subscribers: 346K subscribers
+    description: A quick colorful clip made for a positive break.
+    views: 49K views
+    published: 6 days ago
+    duration: 00:06
+    likes: 4.9K
+    comments: 204
+    thumbnail: {fileID: 21300000, guid: 6ba55f49131e3ed438947fce5817e9aa, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 0
+    mockImageNumber: 24
+    mockColor: {r: 0.58, g: 0.48, b: 0.88, a: 1}
+  - id: video-25
+    sourceStem: normal10
+    title: A Colorful Good Day
+    channel: Happy Minute
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 0
+    channelColor: {r: 0.15, g: 0.68, b: 0.58, a: 1}
+    subscribers: 429K subscribers
+    description: A bright family-friendly clip with a positive mood.
+    views: 67K views
+    published: 1 week ago
+    duration: 00:06
+    likes: 6.7K
+    comments: 275
+    thumbnail: {fileID: 21300000, guid: f98627fe329659d44897d342294b2d66, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 0
+    mockImageNumber: 25
+    mockColor: {r: 0.18, g: 0.72, b: 0.61, a: 1}
+  - id: video-26
+    sourceStem: normal11
+    title: One More Cheerful Clip
+    channel: Kind Corner
+    channelAvatar: {fileID: 0}
+    channelAvatarIndex: 1
+    channelColor: {r: 0.28, g: 0.64, b: 0.32, a: 1}
+    subscribers: 368K subscribers
+    description: A short friendly video with a calm and cheerful tone.
+    views: 53K views
+    published: 2 weeks ago
+    duration: 00:06
+    likes: 5.3K
+    comments: 218
+    thumbnail: {fileID: 21300000, guid: c17233e8f6bb45f47bbe6f2f7c061287, type: 3}
+    videoClip: {fileID: 0}
+    outputTexture: {fileID: 0}
+    contentEffect: 0
+    mockImageNumber: 26
+    mockColor: {r: 0.35, g: 0.7, b: 0.38, a: 1}

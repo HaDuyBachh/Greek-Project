@@ -14,6 +14,9 @@
 - Khi dang focus, giu chuot trai va keo hoac cham-keo de xoay camera quanh Kid.
 - Khi dang focus, nhan `Space` de dua `PhoneScreen` len; nhan lan nua de ha xuong.
 - Click mot Kid khac dang nhin thay: doi muc tieu focus.
+- Khi focus mot Kid, activity/animation ngau nhien cua Kid do tam dung. Neu Kid
+  dang di chuyen, Kid van den waypoint hien tai, doi sang animation dung/ngoi tai
+  waypoint, roi moi dung. Khi ve camera tong, activity tiep tuc.
 - Chuot phai hoac phim `Esc`: quay lai `Main_room`.
 - Click tren UI khong lam thay doi camera.
 

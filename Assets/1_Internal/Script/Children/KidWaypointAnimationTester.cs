@@ -100,10 +100,13 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private LabeledWaypoint previousActivityWaypoint;
     private LabeledWaypoint currentChairSeat;
     private bool phonePauseRequested;
+    private bool focusPauseRequested;
     private bool isTravelling;
-    private bool emotionChangedWhilePhoneOpen;
+    private bool emotionChangedWhilePaused;
 
     public bool IsPausedForPhone => phonePauseRequested;
+    public bool IsPausedForFocus => focusPauseRequested;
+    public bool IsActivityPaused => phonePauseRequested || focusPauseRequested;
     public bool IsTravelling => isTravelling;
     public EmotionState CurrentEmotion => currentEmotion;
     public int BrainrotExposure => brainrotExposure;
@@ -167,10 +170,20 @@ public class KidWaypointAnimationTester : MonoBehaviour
     public void SetPausedForPhone(bool shouldPause)
     {
         phonePauseRequested = shouldPause;
+        ApplyReleasedPauseState();
+    }
 
-        if (!shouldPause && emotionChangedWhilePhoneOpen && !isTravelling)
+    public void SetPausedForFocus(bool shouldPause)
+    {
+        focusPauseRequested = shouldPause;
+        ApplyReleasedPauseState();
+    }
+
+    private void ApplyReleasedPauseState()
+    {
+        if (!IsActivityPaused && emotionChangedWhilePaused && !isTravelling)
         {
-            emotionChangedWhilePhoneOpen = false;
+            emotionChangedWhilePaused = false;
             PlayCurrentEmotionAnimation();
         }
     }
@@ -199,7 +212,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
                 break;
         }
 
-        emotionChangedWhilePhoneOpen |= phonePauseRequested;
+        emotionChangedWhilePaused |= IsActivityPaused;
     }
 
     private void PlayCurrentEmotionAnimation()
@@ -259,7 +272,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
     {
         while (enabled)
         {
-            yield return WaitWhilePhonePaused();
+            yield return WaitWhileActivityPaused();
 
             LabeledWaypoint target = PickActivityWaypoint();
             if (target == null)
@@ -276,6 +289,11 @@ public class KidWaypointAnimationTester : MonoBehaviour
             if (!TrySetDestination(target.Position))
             {
                 isTravelling = false;
+                if (IsActivityPaused)
+                {
+                    PlayCurrentEmotionAnimation();
+                }
+
                 Debug.LogWarning($"{name}: Cannot find NavMesh near waypoint {target.name} ({target.Label}).", target);
                 yield return null;
                 continue;
@@ -290,6 +308,11 @@ public class KidWaypointAnimationTester : MonoBehaviour
                 if (agent.enabled && agent.isOnNavMesh)
                 {
                     agent.isStopped = true;
+                }
+
+                if (IsActivityPaused)
+                {
+                    PlayCurrentEmotionAnimation();
                 }
 
                 Debug.LogWarning($"{name}: Timed out while travelling to {target.name} ({target.Label}).", target);
@@ -315,7 +338,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
                 PlayAnimation(PickStandingAnimation());
             }
 
-            emotionChangedWhilePhoneOpen = false;
+            emotionChangedWhilePaused = false;
 
             yield return WaitForActionDuration(UnityEngine.Random.Range(minActionDuration, maxActionDuration));
         }
@@ -323,9 +346,9 @@ public class KidWaypointAnimationTester : MonoBehaviour
         testRoutine = null;
     }
 
-    private IEnumerator WaitWhilePhonePaused()
+    private IEnumerator WaitWhileActivityPaused()
     {
-        while (phonePauseRequested)
+        while (IsActivityPaused)
         {
             yield return null;
         }
@@ -336,7 +359,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
         float remaining = duration;
         while (remaining > 0f)
         {
-            if (!phonePauseRequested)
+            if (!IsActivityPaused)
             {
                 remaining -= Time.deltaTime;
             }

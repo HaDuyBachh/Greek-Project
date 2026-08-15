@@ -40,3 +40,11 @@ Mot chat co `activeUserKidId` se khong duoc cap cho Kid khac. Ba root noi dung l
 - Moi luot chi bat mot trong `talkRoot`, `emoteRoot`, `videoRoot`.
 
 Day la component test. Khi he thong cam xuc that bat dau phat chat, tat hoac xoa `KidRandomChatTester` de tranh hai he thong cung yeu cau slot.
+
+## Chu ky hien tai trong scene chinh
+
+Scene `1_Main.unity` khong dung lai `KidRandomChatTester`. Component
+`Controller/Kid Feed Cycle Controller` hien mot emote ngau nhien cho `Kid1`
+moi `5` giay, dong thoi yeu cau `PhoneVideoFeedUI` refresh ngau nhien mot phan
+trong 6 video dang hien. Emote duoc giu `2` giay; tat ca reference va sprite pool
+duoc gan san tren Inspector truoc khi Play.

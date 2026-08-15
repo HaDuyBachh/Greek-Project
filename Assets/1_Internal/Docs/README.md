@@ -77,14 +77,15 @@ VideoFeedTemplate
 
 ## Video data va player
 
-`PhoneVideoLibrary.asset` hien co 12 video mock. Moi entry gom:
+`PhoneVideoLibrary.asset` hien co 26 video, tuong ung 1-1 voi 26 MP4 trong
+`Data/Video_Raw`. Moi entry gom:
 
-- `Id`, `Title`, `Channel`, `Description`.
+- `Id`, `Source Stem`, `Title`, `Channel`, `Description`.
 - `Views`, `Published`, `Duration`, `Likes`.
 - `Thumbnail` de gan Sprite that sau nay.
 - `Mock Image Number` va `Mock Color` lam placeholder khi chua co Sprite.
 
-Danh sach dung mock number `01-06` lap lai cho 12 card. Khi click card,
+Runtime chi chon 6 video hop le cho moi lan hien feed. Khi click card,
 `VideoPlayerView` duoc tao trong `VideoFeedTemplate`, hien thumbnail cua card
 lam khung video tam, title, metadata, channel va nut `< Back` co dinh o day.
 Nut Back dong player va tra ve dung danh sach dang scroll.
@@ -112,8 +113,10 @@ bi an. Anh xa `VideoEntry -> RectTransform card` duoc tao lai moi khi runtime
 build danh sach, nen thao tac trong viewer khong dung ten hoac vi tri card de
 doan video.
 
-Trang thai an hien tai chi ton tai trong phien runtime; no chua duoc luu vao
-save data. `Suggest more videos` hien chi dong menu, chua thay doi recommendation
+Video da chon `Don't recommend this video` duoc dua vao blacklist cua phien
+runtime, bi loai khoi card hien tai va khong duoc chon lai trong bat ky lan refill
+hoac refresh nao. Blacklist chua duoc luu vao save data. `Suggest more videos`
+hien chi dong menu, chua thay doi recommendation
 weight. Khi them `RecommendationModel`, hai nut nay nen goi intervention API
 thay vi de `PhoneVideoFeedUI` tu quan ly persistence.
 
@@ -125,7 +128,10 @@ dung mot backdrop truoc panel va bind nut dong; no khong rebuild
 ### GIF source va image-sequence playback
 
 - Video goc duoc giu trong `Data/Video_Raw`.
-- `Data/Video_Processed` chua PNG frame dau dung lam thumbnail va MP4 10 FPS.
+- `Data/Video_Processed` chua PNG frame dau dung lam thumbnail va MP4 10 FPS,
+  duoc sinh tu dong tu tat ca MP4 trong `Data/Video_Raw`.
+- Pipeline tu phat hien va cat bo doan khung den keo dai den het file. Vi vay
+  duration va frame count dung phan noi dung thuc, khong tinh padding den trong MP4 raw.
 - Runtime khong dung `VideoPlayer`. Moi MP4 duoc tach thanh sprite sheet 8x8,
   moi frame 256x144, luu trong `Assets/1_Internal/Resources/VideoFrames`.
 - `manifest.json` luu so frame; player doi `RawImage.texture` va `uvRect` o
@@ -140,8 +146,26 @@ De tao lai sheet cho video hien tai va video moi:
 powershell -ExecutionPolicy Bypass -File Tools/Generate-VideoFrameSheets.ps1
 ```
 
-Script doc tat ca MP4 trong `Data/Video_Processed`, tao lai JPG sheet va cap
-nhat `manifest.json`. Ten MP4 phai trung voi stem do `GetVideoStem` tra ve.
+Script xu ly toan bo pipeline: doc MP4 trong `Data/Video_Raw`, tao MP4 10 FPS va
+thumbnail trong `Data/Video_Processed`, tao lai JPG sheet, sau do cap nhat
+`manifest.json`. `VideoEntry.sourceStem` phai trung voi stem cua file trong
+`Data/Video_Raw`; runtime khong con can hard-code id moi vao `GetVideoStem`.
+
+## Feed rotation va emote cycle
+
+Scene co component `Controller/Kid Feed Cycle Controller` duoc gan san truoc
+khi Play:
+
+- `Cycle Interval Seconds = 5`.
+- Moi chu ky thay ngau nhien `1-3` trong 6 video dang hien.
+- Video trong blacklist `Don't recommend` khong bao gio duoc chon lai.
+- Khi `Kid_Forcus` dang theo doi mot Kid, chu ky van dem nhung khong thay video.
+  Sau khi quay lai `Main_room`, lan chu ky tiep theo moi refresh danh sach.
+- Moi chu ky muon `ChatUIFollowController` cho `Kid1`, hien mot emote ngau nhien
+  trong `2` giay, sau do release chat slot.
+- Danh sach emote, thoi gian chu ky va thoi gian hien deu chinh tren Inspector.
+- Feed khong refresh khi `VideoPlayerView` dang mo, tranh thay card ben duoi khi
+  nguoi choi dang xem video.
 
 ### Tac dong cam xuc
 
@@ -213,11 +237,14 @@ tu them component luc Play.
 
 - `Kids > Activity Controller` tren `KidFocusCameraController` tro truc tiep den
   `KidWaypointAnimationTester` cua Kid tuong ung.
-- Neu mo phone khi Kid dang di chuyen, Kid hoan thanh diem dich hien tai, chuyen
-  sang animation cua waypoint do, sau do moi tam dung.
-- Neu mo phone khi Kid dang dung, ngoi dat hoac ngoi ghe, animation hien tai duoc
-  giu nguyen va khong chon random animation/waypoint moi.
-- Khi dong phone, bo dem activity tiep tuc va random loop hoat dong binh thuong.
+- Ngay khi `Kid_Forcus` theo doi Kid, activity cua Kid do duoc pause; mo phone tao
+  them mot pause reason rieng, nen dong phone van khong lam Kid chay lai khi camera
+  con dang focus.
+- Neu bat dau focus khi Kid dang di chuyen, Kid hoan thanh diem dich hien tai,
+  chuyen sang animation khong di chuyen cua waypoint do, sau do moi tam dung.
+- Neu bat dau focus khi Kid dang dung, ngoi dat hoac ngoi ghe, animation hien tai
+  duoc giu nguyen va khong chon random animation/waypoint moi.
+- Khi quay lai `Main_room`, bo dem activity tiep tuc va random loop hoat dong lai.
 
 ## Nguyen tac cho chuc nang moi
 

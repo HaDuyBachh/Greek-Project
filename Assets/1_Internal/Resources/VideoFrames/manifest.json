@@ -1,28 +1,44 @@
 {
     "videos":  [
                    {
-                       "stem":  "bainrot02",
-                       "frameCount":  584
-                   },
-                   {
-                       "stem":  "bainrot06",
-                       "frameCount":  301
-                   },
-                   {
-                       "stem":  "brainrot01",
+                       "stem":  "bainrot01",
                        "frameCount":  50
                    },
                    {
+                       "stem":  "bainrot02",
+                       "frameCount":  52
+                   },
+                   {
+                       "stem":  "bainrot06",
+                       "frameCount":  40
+                   },
+                   {
                        "stem":  "brainrot03",
-                       "frameCount":  527
+                       "frameCount":  43
                    },
                    {
                        "stem":  "brainrot04",
-                       "frameCount":  396
+                       "frameCount":  40
                    },
                    {
                        "stem":  "brainrot05",
-                       "frameCount":  351
+                       "frameCount":  40
+                   },
+                   {
+                       "stem":  "brainrot06",
+                       "frameCount":  46
+                   },
+                   {
+                       "stem":  "brainrot07",
+                       "frameCount":  46
+                   },
+                   {
+                       "stem":  "brainrot08",
+                       "frameCount":  58
+                   },
+                   {
+                       "stem":  "brainrot09",
+                       "frameCount":  24
                    },
                    {
                        "stem":  "horror01",
@@ -33,8 +49,24 @@
                        "frameCount":  50
                    },
                    {
+                       "stem":  "horror03",
+                       "frameCount":  356
+                   },
+                   {
+                       "stem":  "horror04",
+                       "frameCount":  356
+                   },
+                   {
+                       "stem":  "horror05",
+                       "frameCount":  40
+                   },
+                   {
+                       "stem":  "horror06",
+                       "frameCount":  31
+                   },
+                   {
                        "stem":  "normal01",
-                       "frameCount":  108
+                       "frameCount":  107
                    },
                    {
                        "stem":  "normal02",
@@ -42,11 +74,35 @@
                    },
                    {
                        "stem":  "normal04",
-                       "frameCount":  82
+                       "frameCount":  81
                    },
                    {
                        "stem":  "normal05",
                        "frameCount":  50
+                   },
+                   {
+                       "stem":  "normal06",
+                       "frameCount":  134
+                   },
+                   {
+                       "stem":  "normal07",
+                       "frameCount":  57
+                   },
+                   {
+                       "stem":  "normal08",
+                       "frameCount":  80
+                   },
+                   {
+                       "stem":  "normal09",
+                       "frameCount":  57
+                   },
+                   {
+                       "stem":  "normal10",
+                       "frameCount":  57
+                   },
+                   {
+                       "stem":  "normal11",
+                       "frameCount":  58
                    }
                ]
 }

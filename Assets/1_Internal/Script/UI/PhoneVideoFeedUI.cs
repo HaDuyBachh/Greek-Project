@@ -37,6 +37,14 @@ namespace GreekProject.UI
         [SerializeField] private VideoLibraryData videoLibrary;
         [SerializeField] private KidFocusCameraController kidFocusController;
 
+        [Header("Runtime Feed Rotation")]
+        [SerializeField, Min(1)] private int visibleVideoCount = 6;
+        [SerializeField, Min(1)] private int minimumVideosReplacedPerRefresh = 1;
+        [SerializeField, Min(1)] private int maximumVideosReplacedPerRefresh = 3;
+        [SerializeField] private bool randomizeInitialFeed = true;
+        [SerializeField, Tooltip("Do not rotate feed cards while Kid_Forcus is following a Kid.")]
+        private bool pauseFeedRefreshWhileKidFocused = true;
+
         private sealed class FrameSequence
         {
             public Texture2D[] Sheets;
@@ -77,6 +85,7 @@ namespace GreekProject.UI
         private Slider progressSlider;
         private RectTransform videoOptionsBackdrop;
         private RectTransform videoOptionsPanel;
+        private RectTransform videoContent;
         private RectTransform selectedVideoCard;
         private bool videoOptionsOpenedFromViewer;
         private VideoLibraryData.VideoEntry activeVideo;
@@ -94,6 +103,8 @@ namespace GreekProject.UI
             new Dictionary<VideoLibraryData.VideoEntry, RectTransform>();
         private readonly Dictionary<VideoLibraryData.VideoEntry, FrameSequence> frameSequences =
             new Dictionary<VideoLibraryData.VideoEntry, FrameSequence>();
+        private readonly List<VideoLibraryData.VideoEntry> visibleVideos = new List<VideoLibraryData.VideoEntry>();
+        private readonly HashSet<string> suppressedVideoIds = new HashSet<string>();
 
         private static readonly Color ScreenColor = Hex("FFFFFF");
         private static readonly Color PanelColor = Hex("FFFFFF");
@@ -156,6 +167,8 @@ namespace GreekProject.UI
 
             uploaderAvatars.Clear();
             videoCards.Clear();
+            visibleVideos.Clear();
+            suppressedVideoIds.Clear();
         }
 
         [ContextMenu("Rebuild Video Feed Template")]
@@ -367,7 +380,7 @@ namespace GreekProject.UI
         {
             videoCards.Clear();
             int index = 1;
-            foreach (VideoLibraryData.VideoEntry video in videoLibrary.Videos)
+            foreach (VideoLibraryData.VideoEntry video in visibleVideos)
             {
                 if (video == null)
                 {
@@ -453,6 +466,7 @@ namespace GreekProject.UI
             }
 
             runtimeLibraryInitialized = true;
+            videoContent = content;
             LoadUploaderAvatars();
             BindVideoOptionsPanel(template);
 
@@ -494,6 +508,7 @@ namespace GreekProject.UI
             }
 
             LoadFrameSequences();
+            SelectInitialVisibleVideos();
             BuildVideoCards(content);
             if (viewerRoot != null)
             {
@@ -683,20 +698,141 @@ namespace GreekProject.UI
         {
             RectTransform card = selectedVideoCard;
             bool closeViewer = videoOptionsOpenedFromViewer;
+            VideoLibraryData.VideoEntry videoToSuppress = closeViewer
+                ? activeVideo
+                : FindVideoForCard(card);
             HideVideoOptionsPanel();
-            if (card != null)
+
+            if (videoToSuppress != null && !string.IsNullOrWhiteSpace(videoToSuppress.id))
             {
-                RectTransform content = card.parent as RectTransform;
-                card.gameObject.SetActive(false);
-                if (content != null)
-                {
-                    LayoutRebuilder.MarkLayoutForRebuild(content);
-                }
+                suppressedVideoIds.Add(videoToSuppress.id);
+                visibleVideos.Remove(videoToSuppress);
             }
 
             if (closeViewer)
             {
                 HideViewer();
+            }
+
+            RefillAndRebuildVisibleVideos();
+        }
+
+        public void RefreshRandomVideos()
+        {
+            if (!runtimeLibraryInitialized || videoContent == null ||
+                (viewerRoot != null && viewerRoot.gameObject.activeSelf) ||
+                (pauseFeedRefreshWhileKidFocused && kidFocusController != null && kidFocusController.IsFocusing))
+            {
+                return;
+            }
+
+            int minimum = Mathf.Max(1, minimumVideosReplacedPerRefresh);
+            int maximum = Mathf.Max(minimum, maximumVideosReplacedPerRefresh);
+            int replacementCount = Mathf.Min(visibleVideos.Count, UnityEngine.Random.Range(minimum, maximum + 1));
+            List<VideoLibraryData.VideoEntry> removedVideos = new List<VideoLibraryData.VideoEntry>();
+            for (int index = 0; index < replacementCount && visibleVideos.Count > 0; index++)
+            {
+                int removeIndex = UnityEngine.Random.Range(0, visibleVideos.Count);
+                removedVideos.Add(visibleVideos[removeIndex]);
+                visibleVideos.RemoveAt(removeIndex);
+            }
+
+            RefillAndRebuildVisibleVideos(removedVideos);
+        }
+
+        private void SelectInitialVisibleVideos()
+        {
+            visibleVideos.Clear();
+            List<VideoLibraryData.VideoEntry> candidates = GetEligibleVideos();
+            if (randomizeInitialFeed)
+            {
+                Shuffle(candidates);
+            }
+
+            int count = Mathf.Min(visibleVideoCount, candidates.Count);
+            for (int index = 0; index < count; index++)
+            {
+                visibleVideos.Add(candidates[index]);
+            }
+        }
+
+        private void RefillAndRebuildVisibleVideos(ICollection<VideoLibraryData.VideoEntry> excludedVideos = null)
+        {
+            List<VideoLibraryData.VideoEntry> candidates = GetEligibleVideos();
+            candidates.RemoveAll(video => visibleVideos.Contains(video) ||
+                                          (excludedVideos != null && excludedVideos.Contains(video)));
+            Shuffle(candidates);
+
+            int targetCount = Mathf.Min(visibleVideoCount, visibleVideos.Count + candidates.Count);
+            for (int index = 0; visibleVideos.Count < targetCount; index++)
+            {
+                visibleVideos.Add(candidates[index]);
+            }
+
+            RebuildVisibleCards();
+        }
+
+        private List<VideoLibraryData.VideoEntry> GetEligibleVideos()
+        {
+            List<VideoLibraryData.VideoEntry> candidates = new List<VideoLibraryData.VideoEntry>();
+            if (videoLibrary == null)
+            {
+                return candidates;
+            }
+
+            foreach (VideoLibraryData.VideoEntry video in videoLibrary.Videos)
+            {
+                if (video != null && !string.IsNullOrWhiteSpace(video.id) && !suppressedVideoIds.Contains(video.id))
+                {
+                    candidates.Add(video);
+                }
+            }
+
+            return candidates;
+        }
+
+        private void RebuildVisibleCards()
+        {
+            if (videoContent == null)
+            {
+                return;
+            }
+
+            for (int index = videoContent.childCount - 1; index >= 0; index--)
+            {
+                GameObject oldCard = videoContent.GetChild(index).gameObject;
+                oldCard.SetActive(false);
+                Destroy(oldCard);
+            }
+
+            BuildVideoCards(videoContent);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(videoContent);
+        }
+
+        private VideoLibraryData.VideoEntry FindVideoForCard(RectTransform card)
+        {
+            if (card == null)
+            {
+                return null;
+            }
+
+            foreach (KeyValuePair<VideoLibraryData.VideoEntry, RectTransform> pair in videoCards)
+            {
+                if (pair.Value == card)
+                {
+                    return pair.Key;
+                }
+            }
+
+            return null;
+        }
+
+        private static void Shuffle<T>(IList<T> items)
+        {
+            for (int index = items.Count - 1; index > 0; index--)
+            {
+                int swapIndex = UnityEngine.Random.Range(0, index + 1);
+                (items[index], items[swapIndex]) = (items[swapIndex], items[index]);
             }
         }
 
@@ -1332,6 +1468,11 @@ namespace GreekProject.UI
 
         private Sprite LoadRuntimeThumbnail(VideoLibraryData.VideoEntry video)
         {
+            if (video != null && video.thumbnail != null)
+            {
+                return video.thumbnail;
+            }
+
             string stem = GetVideoStem(video);
             if (string.IsNullOrEmpty(stem))
             {
@@ -1343,7 +1484,7 @@ namespace GreekProject.UI
                 return cached;
             }
 
-            string thumbnailStem = stem == "bainrot01" ? "brainrot01" : stem;
+            string thumbnailStem = stem;
             string path = Path.Combine(
                 Application.dataPath,
                 "1_Internal",
@@ -1372,11 +1513,16 @@ namespace GreekProject.UI
 
         private static string GetVideoStem(VideoLibraryData.VideoEntry video)
         {
+            if (video != null && !string.IsNullOrWhiteSpace(video.sourceStem))
+            {
+                return video.sourceStem;
+            }
+
             return video?.id switch
             {
                 "video-01" => "bainrot02",
                 "video-02" => "bainrot06",
-                "video-03" => "brainrot01",
+                "video-03" => "bainrot01",
                 "video-04" => "brainrot03",
                 "video-05" => "brainrot04",
                 "video-06" => "brainrot05",

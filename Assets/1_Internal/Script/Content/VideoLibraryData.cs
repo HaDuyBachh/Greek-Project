@@ -19,6 +19,8 @@ namespace GreekProject.Content
         public sealed class VideoEntry
         {
             public string id;
+            [Tooltip("File stem shared by Video_Processed and Resources/VideoFrames.")]
+            public string sourceStem;
             public string title;
             [Tooltip("Uploader name displayed for this video.")]
             public string channel;
