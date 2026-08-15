@@ -481,10 +481,9 @@ Assets/1_Internal
 
 ## Chat UI Anchor Binding
 
-Scene `Assets/1_Internal/Scenes/1_Main.unity` dùng các object UI:
-
-- `Chat_Kid1`
-- `Chat_Kid2`
+Scene `Assets/1_Internal/Scenes/1_Main.unity` hiện chỉ giữ object UI
+`Chat_Kid2`. `Chat_Kid1` và binding chat của Kid1 đã được xóa; Kid1 dùng
+`KidEmotionVfxController` để hiện emotion world-space.
 
 Mỗi chat đại diện cho video/cảm xúc hiện tại của một trẻ. Bên trong mỗi chat có:
 
@@ -495,7 +494,6 @@ Mỗi chat đại diện cho video/cảm xúc hiện tại của một trẻ. B�
 Quy ước binding mặc định:
 
 ```text
-Chat_Kid1 -> Kid1/ui_anchor
 Chat_Kid2 -> Kid2/ui_anchor
 ```
 
@@ -522,14 +520,12 @@ Một chat slot không nhất thiết chỉ thuộc một trẻ cố định. `C
 - `kids`: mỗi entry có `kidId`, `kidRoot`, `uiAnchor`, `allowedChatIds`.
 - `chats`: mỗi entry có `chatId`, `chatRoot`, `talkRoot`, `emoteRoot`, `videoRoot`, `videoContentRoot`, `activeUserKidId`.
 
-Ví dụ:
+Trạng thái scene hiện tại:
 
 ```text
-Kid1 allowed chats: Chat_Kid1, Chat_Kid2
-Kid2 allowed chats: Chat_Kid1, Chat_Kid2
-
-Chat_Kid1 activeUserKidId: Kid1
-Chat_Kid2 activeUserKidId: Kid2
+kids: empty
+chats: Chat_Kid2
+Kid1: no chat binding; emotion uses KidEmotionVfxController
 ```
 
 Vị trí chèn nội dung trong mỗi chat:
@@ -561,28 +557,8 @@ Không ghép text và icon trong cùng một lượt. `Video` chỉ được ch�
 
 Chat không hiện liên tục. Kid phải có khoảng im lặng giữa các lượt; prototype dùng `2-5` giây im lặng và `2.5-4.5` giây hiển thị. Khi hết lượt, slot phải được release và ẩn.
 
-Khi cần hiện chat:
-
-```csharp
-chatUIFollowController.RequestChat("Kid1", out ChatUIFollowController.ChatSlot slot);
-```
-
-Khi cần chọn ngẫu nhiên một slot rảnh và tránh slot vừa dùng nếu còn lựa chọn khác:
-
-```csharp
-chatUIFollowController.RequestRandomChat("Kid1", lastChatId, out ChatUIFollowController.ChatSlot slot);
-```
-
-Khi muốn ép một chat cụ thể:
-
-```csharp
-chatUIFollowController.AssignChatToKid("Kid1", "Chat_Kid1");
-```
-
-Khi chat/video/cảm xúc kết thúc:
-
-```csharp
-chatUIFollowController.ReleaseChatUsedByKid("Kid1");
-```
+Kid1 hiện không gọi `RequestChat`, `AssignChatToKid` hoặc
+`ReleaseChatUsedByKid`. Nếu Kid khác dùng chat sau này, các API pool chung vẫn
+có thể được gọi với `kidId` và `chatId` đã serialize cho Kid đó.
 
 Thiết kế và cấu hình prototype hiện tại nằm trong [RandomChatTest.md](RandomChatTest.md).

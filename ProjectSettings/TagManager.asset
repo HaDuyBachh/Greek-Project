@@ -8,6 +8,8 @@ TagManager:
   - emotion
   - focus
   - ui_anchor
+  - brows
+  - phone_handle
   layers:
   - Default
   - TransparentFX

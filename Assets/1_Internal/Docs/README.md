@@ -155,7 +155,7 @@ thumbnail trong `Data/Video_Processed`, tao lai JPG sheet, sau do cap nhat
 `manifest.json`. `VideoEntry.sourceStem` phai trung voi stem cua file trong
 `Data/Video_Raw`; runtime khong con can hard-code id moi vao `GetVideoStem`.
 
-## Feed rotation va emote cycle
+## Feed rotation
 
 Scene co component `Controller/Kid Feed Cycle Controller` duoc gan san truoc
 khi Play:
@@ -169,9 +169,8 @@ khi Play:
   video binh thuong. Card co overlay khong tinh vao quota `1-3` nay.
 - Khi `Kid_Forcus` dang theo doi mot Kid, chu ky van dem nhung khong thay video.
   Sau khi quay lai `Main_room`, lan chu ky tiep theo moi refresh danh sach.
-- Moi chu ky muon `ChatUIFollowController` cho `Kid1`, hien mot emote ngau nhien
-  trong `2` giay, sau do release chat slot.
-- Danh sach emote, thoi gian chu ky va thoi gian hien deu chinh tren Inspector.
+- Chu ky khong con muon chat slot hay hien emote UI cho Kid1. Emotion cua Kid1
+  chi do `KidEmotionVfxController` hien bang VFX world-space.
 - Feed khong refresh khi `VideoPlayerView` dang mo, tranh thay card ben duoi khi
   nguoi choi dang xem video.
 
@@ -241,10 +240,9 @@ tuong tac voi TV UI:
 - Chuyen vao `TV_Forcus` khong random lai feed va khong khoi dong lai player;
   video TV dang phat o camera tong tiep tuc tu dung frame hien tai.
 
-`ChatUiAnchorFollower` an chat bubble khi bubble overlap `ScreenMask`, vi vay
-chat cua Kid khong ve de len giao dien dien thoai. Component nay va
-`CanvasGroup` nam truc tiep tren `Chat_Kid1` va `Chat_Kid2`; controller khong
-tu them component luc Play.
+`Chat_Kid1` da duoc xoa khoi scene va Kid1 khong con binding trong chat pool.
+`Chat_Kid2` va ha tang `ChatUIFollowController` van duoc giu cho Kid khac;
+controller khong tu them component luc Play.
 
 ## Logic tu dong da loai bo
 
@@ -341,6 +339,24 @@ mot che do camera nhan input.
   `Apply Television Layout`; thao tac nay chi sua scene trong Edit Mode.
 - TV tai toan bo image sequence 10 FPS trong `Awake`, truoc khi nguoi dung chon
   video; khong co delayed loader hay runtime bootstrap gan script.
+
+## Kid emotion VFX
+
+Kid1 co `KidEmotionVfxController` va hai anchor VFX doc lap:
+`emotion_Main_room` cho camera tong, `emotion_Kid_Forcus` cho camera focus.
+`emotion_Main_room_root` nam tai dinh dau Kid va la moc vi tri on dinh. Anchor
+ghi lai world offset va world rotation cua `emotion_Main_room` cung
+`emotion_Kid_Forcus` luc vao Play. Moi frame, anchor chi cong offset cu vao vi tri
+root hien tai va khoi phuc rotation cu. Vi vay VFX di theo Kid nhung khong quay
+vong quanh dau hay doi huong khi character xoay; pose can trong scene truoc Play
+la moc duy nhat, khong co logic billboard theo camera.
+Camera focus va vung chon Kid dung `kid_focus_point` co dinh rieng, khong con
+dung chung transform voi emotion dang di chuyen.
+Moi state `Stable`, `Happy`, `Anxious`, `Panic` co nam prefab bien the tren moi
+anchor. Tat ca prefab instance va reference duoc gan san trong scene truoc Play;
+runtime chi bat/tat object co san. Khi `TV_Forcus` active, controller tat ca hai
+anchor nen camera TV khong hien emotion cua Kid. Chi tiet va cach chinh Inspector
+nam trong [KidEmotionVfx.md](KidEmotionVfx.md).
 
 ## Checklist kiem thu
 
