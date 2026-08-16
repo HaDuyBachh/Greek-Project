@@ -46,9 +46,11 @@ public sealed class KidDeviceUsageController : MonoBehaviour
     public bool IsWatchingPhone => CanUsePhone && !activityController.IsTravelling &&
                                    IsAnimation(activityController.CurrentAnimationState,
                                        groundPhoneAnimation, chairPhoneAnimation);
-    public bool IsWatchingTelevision => CanUseTelevision && !activityController.IsTravelling &&
-                                        string.Equals(activityController.CurrentAnimationState,
-                                            chairTelevisionAnimation, StringComparison.OrdinalIgnoreCase);
+    public bool IsWatchingTelevision => CanUseTelevision &&
+                                        currentActivity == DeviceActivity.Television &&
+                                        !activityController.IsTravelling &&
+                                        activityController.CurrentChairSeat != null;
+    public DeviceActivity NextChairActivity => ResolveNextChairActivity();
 
     private void Awake()
     {
@@ -79,22 +81,25 @@ public sealed class KidDeviceUsageController : MonoBehaviour
 
     public void BeginChairActivity()
     {
+        currentActivity = ResolveNextChairActivity();
+        if (usageType == DeviceUsageType.PhoneAndTelevision)
+        {
+            nextDualChairActivity = currentActivity == DeviceActivity.Phone
+                ? DeviceActivity.Television
+                : DeviceActivity.Phone;
+        }
+    }
+
+    private DeviceActivity ResolveNextChairActivity()
+    {
         switch (usageType)
         {
             case DeviceUsageType.PhoneOnly:
-                currentActivity = DeviceActivity.Phone;
-                break;
-
+                return DeviceActivity.Phone;
             case DeviceUsageType.TelevisionOnly:
-                currentActivity = DeviceActivity.Television;
-                break;
-
+                return DeviceActivity.Television;
             default:
-                currentActivity = nextDualChairActivity;
-                nextDualChairActivity = currentActivity == DeviceActivity.Phone
-                    ? DeviceActivity.Television
-                    : DeviceActivity.Phone;
-                break;
+                return nextDualChairActivity;
         }
     }
 
@@ -177,9 +182,9 @@ public sealed class KidDeviceUsageController : MonoBehaviour
 
     private void ValidatePrebuiltReferences()
     {
-        if (activityController == null || phoneHandle == null)
+        if (activityController == null || (CanUsePhone && phoneHandle == null))
         {
-            Debug.LogError("Kid Device Usage requires its activity controller and prebuilt phone_handle assigned before Play.", this);
+            Debug.LogError("Kid Device Usage requires its activity controller, plus a prebuilt phone_handle for Phone-capable Kids, assigned before Play.", this);
         }
     }
 }

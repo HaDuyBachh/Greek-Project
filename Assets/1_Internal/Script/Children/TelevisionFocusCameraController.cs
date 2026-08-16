@@ -153,22 +153,9 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
             return false;
         }
 
-        if (kid.televisionAnimations == null || kid.televisionAnimations.Length == 0)
-        {
-            return true;
-        }
-
-        string currentAnimation = kid.activityController.CurrentAnimationState;
-        foreach (string animationName in kid.televisionAnimations)
-        {
-            if (!string.IsNullOrWhiteSpace(animationName) &&
-                string.Equals(animationName, currentAnimation, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // A reaction animation does not stop the Kid from watching the current TV broadcast.
+        // Device activity plus the occupied TV seat is the authoritative state here.
+        return true;
     }
 
     private Vector3 GetTelevisionSelectionPoint()

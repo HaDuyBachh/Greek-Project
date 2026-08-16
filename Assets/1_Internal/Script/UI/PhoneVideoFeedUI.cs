@@ -37,14 +37,28 @@ namespace GreekProject.UI
         [SerializeField] private VideoLibraryData videoLibrary;
         [SerializeField] private KidFocusCameraController kidFocusController;
 
-        [Header("Runtime Feed Rotation")]
+        [Header("Independent Kid Phones")]
+        [SerializeField, Tooltip("Prebuilt Phone owners. Noah and Ethan must use different entries.")]
+        private KidFeedCycleController[] kidPhoneOwners;
+        [SerializeField, Tooltip("Open the exact video currently consumed by the selected Kid when PhoneScreen opens.")]
+        private bool openCurrentKidVideoOnPhoneEnter = true;
+
+        [Header("Legacy Fallback Rotation (Unused With Kid Phone Owners)")]
         [SerializeField, Min(1)] private int visibleVideoCount = 6;
         [SerializeField] private bool randomizeInitialFeed = true;
-        [SerializeField, Tooltip("Do not rotate feed cards while Kid_Forcus is following a Kid.")]
+        [SerializeField, Tooltip("Do not rotate feed cards while PhoneScreen is actually open.")]
         private bool pauseFeedRefreshWhileKidFocused = true;
         [SerializeField] private bool autoRefreshFeedWhenNotFocused = true;
-        [SerializeField, Min(0.1f)] private float minimumSecondsBeforeFeedRefresh = 15f;
-        [SerializeField, Min(0.1f)] private float maximumSecondsBeforeFeedRefresh = 15f;
+        [SerializeField, Min(0.1f)] private float minimumSecondsBeforeFeedRefresh = 5f;
+        [SerializeField, Min(0.1f)] private float maximumSecondsBeforeFeedRefresh = 5f;
+
+        [Header("Feed Content Mix")]
+        [SerializeField, Tooltip("Keep each feed from being filled with Brainrot/Horror videos.")]
+        private bool balanceHarmfulContent = true;
+        [SerializeField, Min(1), Tooltip("Approximate number of Normal videos for every Brainrot/Horror video.")]
+        private int normalVideosPerHarmfulVideo = 3;
+        [SerializeField, Range(1, 3), Tooltip("Hard limit for Brainrot/Horror cards in one six-card feed.")]
+        private int maximumHarmfulVideosPerFeed = 2;
 
         [Header("Not Recommended Overlay")]
         [SerializeField] private string videoRemovedText = "Video removed";
@@ -116,6 +130,8 @@ namespace GreekProject.UI
         private float secondsBeforeFeedRefresh;
         private int displayedSequenceFrame = -1;
         private FrameSequence activeSequence;
+        private KidFeedCycleController activePhoneOwner;
+        private int presentedPhoneFeedRevision = -1;
         private readonly Dictionary<string, Sprite> runtimeThumbnails = new Dictionary<string, Sprite>();
         private readonly Dictionary<int, Sprite> uploaderAvatars = new Dictionary<int, Sprite>();
         private readonly Dictionary<VideoLibraryData.VideoEntry, RectTransform> videoCards =
@@ -125,6 +141,9 @@ namespace GreekProject.UI
         private readonly List<VideoLibraryData.VideoEntry> visibleVideos = new List<VideoLibraryData.VideoEntry>();
         private readonly HashSet<string> suppressedVideoIds =
             new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyList<VideoLibraryData.VideoEntry> VisibleVideos =>
+            activePhoneOwner != null ? activePhoneOwner.PhoneVisibleVideos : visibleVideos;
 
         private static readonly Color ScreenColor = Hex("FFFFFF");
         private static readonly Color PanelColor = Hex("FFFFFF");
@@ -139,6 +158,7 @@ namespace GreekProject.UI
         {
             if (Application.isPlaying)
             {
+                ValidateKidPhoneOwners();
                 InitializeRuntimeLibrary();
             }
         }
@@ -156,6 +176,13 @@ namespace GreekProject.UI
             ResetScrollWhenPhoneVisibilityChanges();
             UpdateAutomaticFeedRefresh();
 
+            if (kidFocusController != null && kidFocusController.IsPhoneScreenVisible &&
+                activePhoneOwner != null &&
+                activePhoneOwner.PhoneFeedRevision != presentedPhoneFeedRevision)
+            {
+                PresentSelectedKidPhone(false, true);
+            }
+
             if (viewerRoot != null && viewerRoot.gameObject.activeSelf &&
                 kidFocusController != null && !kidFocusController.IsPhoneScreenVisible)
             {
@@ -164,6 +191,18 @@ namespace GreekProject.UI
             }
 
             UpdateVideoPlaybackUi();
+        }
+
+        private void ValidateKidPhoneOwners()
+        {
+            if (kidPhoneOwners == null || kidPhoneOwners.Length != 2 ||
+                kidPhoneOwners[0] == null || kidPhoneOwners[1] == null ||
+                kidPhoneOwners[0] == kidPhoneOwners[1] ||
+                string.Equals(kidPhoneOwners[0].KidId, kidPhoneOwners[1].KidId,
+                    System.StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.LogError("Phone Video Feed UI requires two different prebuilt Kid phone owners before Play.", this);
+            }
         }
 
         private void OnDestroy()
@@ -471,7 +510,7 @@ namespace GreekProject.UI
             }
 
             RectTransform removedOverlay = BuildNotRecommendedOverlay(card);
-            bool isSuppressed = !string.IsNullOrWhiteSpace(video.id) && suppressedVideoIds.Contains(video.id);
+            bool isSuppressed = IsVideoSuppressedOnPresentedPhone(video);
             SetCardSuppressedState(card, removedOverlay, isSuppressed);
         }
 
@@ -594,7 +633,10 @@ namespace GreekProject.UI
             }
 
             LoadFrameSequences();
-            SelectInitialVisibleVideos();
+            if (!PresentSelectedKidPhone(false, false))
+            {
+                SelectInitialVisibleVideos();
+            }
             BuildVideoCards(content);
             runtimeLibraryInitialized = true;
             ScheduleNextFeedRefresh();
@@ -629,6 +671,15 @@ namespace GreekProject.UI
             {
                 ResetVideoScrollToTop();
             }
+
+            if (isPhoneVisible)
+            {
+                PresentSelectedKidPhone(openCurrentKidVideoOnPhoneEnter, true);
+            }
+            else
+            {
+                HideViewer();
+            }
         }
 
         [ContextMenu("Reset Video Scroll To Top")]
@@ -656,7 +707,88 @@ namespace GreekProject.UI
             videoScroll.verticalNormalizedPosition = 1f;
         }
 
+        private bool PresentSelectedKidPhone(bool openCurrentVideo, bool rebuildCards)
+        {
+            KidFeedCycleController owner = ResolveSelectedPhoneOwner();
+            if (owner == null)
+            {
+                return false;
+            }
+
+            owner.EnsurePhoneFeedInitialized();
+            activePhoneOwner = owner;
+            visibleVideos.Clear();
+            foreach (VideoLibraryData.VideoEntry video in owner.PhoneVisibleVideos)
+            {
+                if (video != null)
+                {
+                    visibleVideos.Add(video);
+                }
+            }
+
+            presentedPhoneFeedRevision = owner.PhoneFeedRevision;
+            if (rebuildCards && videoContent != null)
+            {
+                RebuildVisibleCards();
+            }
+
+            if (openCurrentVideo)
+            {
+                VideoLibraryData.VideoEntry currentVideo = owner.CurrentPhoneVideo;
+                if (currentVideo != null && !owner.IsPhoneVideoHidden(currentVideo))
+                {
+                    ShowVideo(currentVideo, owner.CurrentPhonePlaybackSeconds, true);
+                }
+            }
+
+            return true;
+        }
+
+        private KidFeedCycleController ResolveSelectedPhoneOwner()
+        {
+            if (kidPhoneOwners == null || kidPhoneOwners.Length == 0)
+            {
+                return null;
+            }
+
+            string selectedKidId = kidFocusController != null
+                ? kidFocusController.SelectedKidId
+                : string.Empty;
+            KidFeedCycleController fallback = null;
+            foreach (KidFeedCycleController owner in kidPhoneOwners)
+            {
+                if (owner == null)
+                {
+                    continue;
+                }
+
+                fallback ??= owner;
+                if (!string.IsNullOrWhiteSpace(selectedKidId) &&
+                    string.Equals(owner.KidId, selectedKidId,
+                        System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return owner;
+                }
+            }
+
+            return string.IsNullOrWhiteSpace(selectedKidId) ? fallback : null;
+        }
+
+        private bool IsVideoSuppressedOnPresentedPhone(VideoLibraryData.VideoEntry video)
+        {
+            return activePhoneOwner != null
+                ? activePhoneOwner.IsPhoneVideoHidden(video)
+                : video != null && !string.IsNullOrWhiteSpace(video.id) &&
+                  suppressedVideoIds.Contains(video.id);
+        }
+
         private void ShowVideo(VideoLibraryData.VideoEntry video)
+        {
+            ShowVideo(video, 0f, false);
+        }
+
+        private void ShowVideo(VideoLibraryData.VideoEntry video, float initialPlaybackSeconds,
+            bool inspectingKidPlayback)
         {
             if (video == null)
             {
@@ -687,6 +819,20 @@ namespace GreekProject.UI
             viewerRoot.gameObject.SetActive(true);
             viewerRoot.SetAsLastSibling();
             ConfigureFrameSequence(video);
+            if (activeSequence != null && activeSequence.Duration > 0f)
+            {
+                sequenceTime = Mathf.Repeat(Mathf.Max(0f, initialPlaybackSeconds),
+                    activeSequence.Duration);
+                displayedSequenceFrame = -1;
+                ApplySequenceFrame(Mathf.Min(
+                    Mathf.FloorToInt(sequenceTime * SequenceFramesPerSecond),
+                    activeSequence.FrameCount - 1));
+                suppressProgressCallback = true;
+                progressSlider.value = Mathf.Clamp01(sequenceTime / activeSequence.Duration);
+                suppressProgressCallback = false;
+            }
+
+            effectAppliedForCurrentPlay = inspectingKidPlayback;
         }
 
         private void HideViewer()
@@ -845,7 +991,15 @@ namespace GreekProject.UI
 
             if (videoToSuppress != null && !string.IsNullOrWhiteSpace(videoToSuppress.id))
             {
-                suppressedVideoIds.Add(videoToSuppress.id);
+                if (activePhoneOwner != null)
+                {
+                    activePhoneOwner.HidePhoneVideo(videoToSuppress);
+                    presentedPhoneFeedRevision = activePhoneOwner.PhoneFeedRevision;
+                }
+                else
+                {
+                    suppressedVideoIds.Add(videoToSuppress.id);
+                }
                 if (card == null)
                 {
                     videoCards.TryGetValue(videoToSuppress, out card);
@@ -864,9 +1018,22 @@ namespace GreekProject.UI
 
         public void RefreshRandomVideos()
         {
+            if (activePhoneOwner != null)
+            {
+                if (kidFocusController != null && kidFocusController.IsPhoneScreenVisible)
+                {
+                    return;
+                }
+
+                activePhoneOwner.RefreshPhoneFeedNow();
+                PresentSelectedKidPhone(false, true);
+                return;
+            }
+
             if (!runtimeLibraryInitialized || videoContent == null ||
                 (viewerRoot != null && viewerRoot.gameObject.activeSelf) ||
-                (pauseFeedRefreshWhileKidFocused && kidFocusController != null && kidFocusController.IsFocusing))
+                (pauseFeedRefreshWhileKidFocused && kidFocusController != null &&
+                 kidFocusController.IsPhoneScreenVisible))
             {
                 return;
             }
@@ -877,9 +1044,15 @@ namespace GreekProject.UI
 
         private void UpdateAutomaticFeedRefresh()
         {
+            if (kidPhoneOwners != null && kidPhoneOwners.Length > 0)
+            {
+                return;
+            }
+
             if (!autoRefreshFeedWhenNotFocused || !runtimeLibraryInitialized || videoContent == null ||
                 (viewerRoot != null && viewerRoot.gameObject.activeSelf) ||
-                (pauseFeedRefreshWhileKidFocused && kidFocusController != null && kidFocusController.IsFocusing))
+                (pauseFeedRefreshWhileKidFocused && kidFocusController != null &&
+                 kidFocusController.IsPhoneScreenVisible))
             {
                 return;
             }
@@ -901,46 +1074,114 @@ namespace GreekProject.UI
 
         private void SelectInitialVisibleVideos()
         {
-            visibleVideos.Clear();
             List<VideoLibraryData.VideoEntry> candidates = GetEligibleVideos();
-            if (randomizeInitialFeed)
-            {
-                Shuffle(candidates);
-            }
-
             int count = Mathf.Min(visibleVideoCount, candidates.Count);
-            for (int index = 0; index < count; index++)
-            {
-                visibleVideos.Add(candidates[index]);
-            }
+            SelectVideosWithContentMix(candidates, null, count, randomizeInitialFeed);
         }
 
         private void ReplaceEntireVisibleFeed()
         {
             List<VideoLibraryData.VideoEntry> previousVideos = new List<VideoLibraryData.VideoEntry>(visibleVideos);
             List<VideoLibraryData.VideoEntry> candidates = GetEligibleVideos();
-            candidates.RemoveAll(previousVideos.Contains);
-            Shuffle(candidates);
+            int targetCount = Mathf.Min(visibleVideoCount, candidates.Count);
+            SelectVideosWithContentMix(candidates, previousVideos, targetCount, true);
 
+            RebuildVisibleCards();
+        }
+
+        private void SelectVideosWithContentMix(
+            List<VideoLibraryData.VideoEntry> candidates,
+            IList<VideoLibraryData.VideoEntry> previousVideos,
+            int targetCount,
+            bool shuffle)
+        {
             visibleVideos.Clear();
-            int targetCount = Mathf.Min(visibleVideoCount, GetEligibleVideos().Count);
-            for (int index = 0; index < candidates.Count && visibleVideos.Count < targetCount; index++)
+            if (candidates == null || targetCount <= 0)
             {
-                visibleVideos.Add(candidates[index]);
+                return;
             }
+
+            HashSet<VideoLibraryData.VideoEntry> previous = previousVideos != null
+                ? new HashSet<VideoLibraryData.VideoEntry>(previousVideos)
+                : new HashSet<VideoLibraryData.VideoEntry>();
+            List<VideoLibraryData.VideoEntry> freshNormal = new List<VideoLibraryData.VideoEntry>();
+            List<VideoLibraryData.VideoEntry> freshHarmful = new List<VideoLibraryData.VideoEntry>();
+            List<VideoLibraryData.VideoEntry> fallbackNormal = new List<VideoLibraryData.VideoEntry>();
+            List<VideoLibraryData.VideoEntry> fallbackHarmful = new List<VideoLibraryData.VideoEntry>();
+
+            foreach (VideoLibraryData.VideoEntry video in candidates)
+            {
+                bool harmful = IsHarmful(video);
+                bool wasPreviouslyVisible = previous.Contains(video);
+                List<VideoLibraryData.VideoEntry> destination = harmful
+                    ? wasPreviouslyVisible ? fallbackHarmful : freshHarmful
+                    : wasPreviouslyVisible ? fallbackNormal : freshNormal;
+                destination.Add(video);
+            }
+
+            if (shuffle)
+            {
+                Shuffle(freshNormal);
+                Shuffle(freshHarmful);
+                Shuffle(fallbackNormal);
+                Shuffle(fallbackHarmful);
+            }
+
+            freshNormal.AddRange(fallbackNormal);
+            freshHarmful.AddRange(fallbackHarmful);
+            if (!balanceHarmfulContent)
+            {
+                freshNormal.AddRange(freshHarmful);
+                if (shuffle)
+                {
+                    Shuffle(freshNormal);
+                }
+
+                AddVideos(freshNormal, targetCount);
+                return;
+            }
+
+            int ratioSize = Mathf.Max(2, normalVideosPerHarmfulVideo + 1);
+            int desiredHarmful = Mathf.RoundToInt(targetCount / (float)ratioSize);
+            desiredHarmful = Mathf.Clamp(desiredHarmful, 1,
+                Mathf.Min(maximumHarmfulVideosPerFeed, targetCount));
+            int desiredNormal = targetCount - desiredHarmful;
+            AddVideos(freshNormal, desiredNormal);
+            int countBeforeHarmful = visibleVideos.Count;
+            AddVideos(freshHarmful, desiredHarmful);
+            int harmfulAdded = visibleVideos.Count - countBeforeHarmful;
 
             if (visibleVideos.Count < targetCount)
             {
-                List<VideoLibraryData.VideoEntry> fallbackCandidates = GetEligibleVideos();
-                fallbackCandidates.RemoveAll(visibleVideos.Contains);
-                Shuffle(fallbackCandidates);
-                for (int index = 0; index < fallbackCandidates.Count && visibleVideos.Count < targetCount; index++)
-                {
-                    visibleVideos.Add(fallbackCandidates[index]);
-                }
+                AddVideos(freshNormal, targetCount - visibleVideos.Count);
+                int harmfulCapacity = Mathf.Max(0, maximumHarmfulVideosPerFeed - harmfulAdded);
+                AddVideos(freshHarmful, Mathf.Min(
+                    targetCount - visibleVideos.Count, harmfulCapacity));
             }
 
-            RebuildVisibleCards();
+            if (shuffle)
+            {
+                Shuffle(visibleVideos);
+            }
+        }
+
+        private void AddVideos(List<VideoLibraryData.VideoEntry> source, int maximumToAdd)
+        {
+            int addCount = Mathf.Min(maximumToAdd, source.Count);
+            for (int index = 0; index < addCount; index++)
+            {
+                visibleVideos.Add(source[index]);
+            }
+
+            if (addCount > 0)
+            {
+                source.RemoveRange(0, addCount);
+            }
+        }
+
+        private static bool IsHarmful(VideoLibraryData.VideoEntry video)
+        {
+            return video != null && video.contentEffect != VideoContentEffect.Normal;
         }
 
         private List<VideoLibraryData.VideoEntry> GetEligibleVideos()
@@ -962,6 +1203,11 @@ namespace GreekProject.UI
             }
 
             return candidates;
+        }
+
+        public bool IsVideoHiddenForKid(VideoLibraryData.VideoEntry video)
+        {
+            return IsVideoSuppressedOnPresentedPhone(video);
         }
 
         private void RebuildVisibleCards()

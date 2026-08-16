@@ -31,13 +31,30 @@ public class KidWaypointAnimationTester : MonoBehaviour
     [SerializeField] private KidDeviceUsageController deviceUsageController;
     [SerializeField] private bool startOnPlay = true;
 
+    [Header("Television Facing")]
+    [SerializeField, Tooltip("Prebuilt TV transform used as the horizontal look target.")]
+    private Transform televisionLookTarget;
+    [SerializeField] private bool faceTelevisionWhileApproaching = true;
+    [SerializeField, Min(0.1f)] private float televisionFacingApproachDistance = 1.5f;
+    [SerializeField, Min(1f)] private float televisionTurnSpeed = 240f;
+
     [Header("Timing")]
     [SerializeField, Min(0.1f)] private float minActionDuration = 3f;
     [SerializeField, Min(0.1f)] private float maxActionDuration = 7f;
     [SerializeField, Tooltip("Visit activity waypoints in their Inspector order instead of choosing a random destination.")]
     private bool visitWaypointsInOrder = true;
+    [SerializeField, Min(0), Tooltip("Starting offset in the ordered activity-waypoint list. Use a different value per Kid to avoid overlap.")]
+    private int firstActivityWaypointIndex;
     [SerializeField, Min(1f)] private float travelTimeout = 20f;
     [SerializeField, Min(0f)] private float animationBlendTime = 0.2f;
+
+    [Header("Waypoint Occupancy")]
+    [SerializeField, Tooltip("Prevent this Kid from selecting a waypoint or chair already used or reserved by another Kid.")]
+    private bool preventSharedPositions = true;
+    [SerializeField, Min(0.1f), Tooltip("Minimum world-space separation between positions claimed by different Kids.")]
+    private float reservedPositionRadius = 0.8f;
+    [SerializeField, Min(0.1f), Tooltip("How long to wait before checking again when every suitable position is occupied.")]
+    private float unavailablePositionRetryDelay = 1f;
 
     [Header("Video Emotion")]
     [SerializeField, Min(1)] private int brainrotViewsBeforeAnxiety = 3;
@@ -101,6 +118,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private readonly List<LabeledWaypoint> activityWaypoints = new List<LabeledWaypoint>();
     private readonly List<LabeledWaypoint> sofaEntrances = new List<LabeledWaypoint>();
     private readonly List<LabeledWaypoint> chairSeats = new List<LabeledWaypoint>();
+    private static readonly List<KidWaypointAnimationTester> ActiveMovers = new List<KidWaypointAnimationTester>();
 
     private Coroutine testRoutine;
     private LabeledWaypoint previousActivityWaypoint;
@@ -112,6 +130,9 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private bool videoSuspicionActive;
     private string currentAnimationState = string.Empty;
     private int nextActivityWaypointIndex;
+    private LabeledWaypoint reservedDestination;
+    private LabeledWaypoint reservedChairDestination;
+    private bool reservedChairWillWatchTelevision;
 
     public bool IsPausedForPhone => phonePauseRequested;
     public bool IsPausedForFocus => focusPauseRequested;
@@ -132,10 +153,19 @@ public class KidWaypointAnimationTester : MonoBehaviour
     {
         ResolveReferences();
         CacheWaypoints();
+        nextActivityWaypointIndex = Mathf.Max(0, firstActivityWaypointIndex);
 
         if (animator != null)
         {
             animator.applyRootMotion = false;
+        }
+    }
+
+    private void OnEnable()
+    {
+        if (!ActiveMovers.Contains(this))
+        {
+            ActiveMovers.Add(this);
         }
     }
 
@@ -150,6 +180,13 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private void OnDisable()
     {
         StopTesting();
+        ClearPendingReservations();
+        ActiveMovers.Remove(this);
+    }
+
+    private void OnDestroy()
+    {
+        ActiveMovers.Remove(this);
     }
 
     [ContextMenu("Start Random Animation Test")]
@@ -270,6 +307,11 @@ public class KidWaypointAnimationTester : MonoBehaviour
         }
     }
 
+    public void ApplyUnresolvedHarmfulContentPanic()
+    {
+        ApplyViewedVideoEffect(VideoContentEffect.Horror);
+    }
+
     public void SetVideoSuspicion(bool shouldShow)
     {
         videoSuspicionActive = shouldShow;
@@ -337,7 +379,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
             LabeledWaypoint target = PickActivityWaypoint();
             if (target == null)
             {
-                yield break;
+                yield return WaitForActionDuration(unavailablePositionRetryDelay);
+                continue;
             }
 
             PrepareToTravel();
@@ -355,6 +398,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
                 }
 
                 Debug.LogWarning($"{name}: Cannot find NavMesh near waypoint {target.name} ({target.Label}).", target);
+                ClearPendingReservations();
                 yield return null;
                 continue;
             }
@@ -376,6 +420,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
                 }
 
                 Debug.LogWarning($"{name}: Timed out while travelling to {target.name} ({target.Label}).", target);
+                ClearPendingReservations();
                 continue;
             }
 
@@ -385,7 +430,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
             if (HasLabel(target, EnterSofaLabel))
             {
-                EnterNearestChair(target);
+                EnterReservedChair(target);
             }
             else if (HasLabel(target, SitGroundLabel))
             {
@@ -398,6 +443,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
                 transform.rotation = target.transform.rotation;
                 PlayAnimation(PickStandingAnimation());
             }
+
+            ClearPendingReservations();
 
             emotionChangedWhilePaused = false;
 
@@ -489,6 +536,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
         while (elapsed < travelTimeout)
         {
+            UpdateTelevisionFacingWhileApproaching();
+
             if (agent.enabled && agent.isOnNavMesh && !agent.pathPending &&
                 agent.pathStatus != NavMeshPathStatus.PathInvalid &&
                 agent.remainingDistance <= GetArrivalDistance(target))
@@ -501,12 +550,12 @@ public class KidWaypointAnimationTester : MonoBehaviour
         }
     }
 
-    private void EnterNearestChair(LabeledWaypoint entrance)
+    private void EnterReservedChair(LabeledWaypoint entrance)
     {
-        LabeledWaypoint chair = FindNearest(entrance.Position, chairSeats);
+        LabeledWaypoint chair = reservedChairDestination;
         if (chair == null)
         {
-            Debug.LogWarning($"{name}: No sit_chair waypoint was found for {entrance.name}.", entrance);
+            Debug.LogWarning($"{name}: No unoccupied sit_chair waypoint was reserved for {entrance.name}.", entrance);
             PlayAnimation(PickStandingAnimation());
             return;
         }
@@ -515,6 +564,10 @@ public class KidWaypointAnimationTester : MonoBehaviour
         LockToWaypoint(chair);
         chair.Arrive(gameObject);
         deviceUsageController?.BeginChairActivity();
+        if (deviceUsageController != null && deviceUsageController.IsWatchingTelevision)
+        {
+            FaceTelevisionImmediately();
+        }
         PlayAnimation(PickChairAnimation());
     }
 
@@ -585,18 +638,13 @@ public class KidWaypointAnimationTester : MonoBehaviour
             return null;
         }
 
-        if (activityWaypoints.Count == 1)
-        {
-            return activityWaypoints[0];
-        }
-
         if (visitWaypointsInOrder)
         {
             for (int offset = 0; offset < activityWaypoints.Count; offset++)
             {
                 int index = (nextActivityWaypointIndex + offset) % activityWaypoints.Count;
                 LabeledWaypoint candidate = activityWaypoints[index];
-                if (candidate == null || candidate == previousActivityWaypoint)
+                if (candidate == null || candidate == previousActivityWaypoint || !TryReserveDestination(candidate))
                 {
                     continue;
                 }
@@ -606,17 +654,159 @@ public class KidWaypointAnimationTester : MonoBehaviour
             }
         }
 
-        LabeledWaypoint selected;
-        int attempts = 0;
-
-        do
+        int randomStartIndex = UnityEngine.Random.Range(0, activityWaypoints.Count);
+        for (int offset = 0; offset < activityWaypoints.Count; offset++)
         {
-            selected = activityWaypoints[UnityEngine.Random.Range(0, activityWaypoints.Count)];
-            attempts++;
+            LabeledWaypoint candidate = activityWaypoints[(randomStartIndex + offset) % activityWaypoints.Count];
+            if (candidate != null && candidate != previousActivityWaypoint && TryReserveDestination(candidate))
+            {
+                return candidate;
+            }
         }
-        while (selected == previousActivityWaypoint && attempts < 8);
 
-        return selected;
+        return null;
+    }
+
+    private bool TryReserveDestination(LabeledWaypoint candidate)
+    {
+        if (!IsPositionAvailable(candidate))
+        {
+            return false;
+        }
+
+        LabeledWaypoint chair = null;
+        if (HasLabel(candidate, EnterSofaLabel))
+        {
+            chair = FindNearestAvailable(candidate.Position, chairSeats);
+            if (chair == null)
+            {
+                return false;
+            }
+        }
+
+        reservedDestination = candidate;
+        reservedChairDestination = chair;
+        reservedChairWillWatchTelevision = chair != null && deviceUsageController != null &&
+                                           deviceUsageController.NextChairActivity ==
+                                           KidDeviceUsageController.DeviceActivity.Television;
+        return true;
+    }
+
+    private LabeledWaypoint FindNearestAvailable(Vector3 origin, List<LabeledWaypoint> candidates)
+    {
+        LabeledWaypoint nearest = null;
+        float nearestDistance = float.PositiveInfinity;
+
+        foreach (LabeledWaypoint candidate in candidates)
+        {
+            if (candidate == null || !IsPositionAvailable(candidate))
+            {
+                continue;
+            }
+
+            float distance = (candidate.Position - origin).sqrMagnitude;
+            if (distance < nearestDistance)
+            {
+                nearest = candidate;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
+    }
+
+    private bool IsPositionAvailable(LabeledWaypoint candidate)
+    {
+        if (!preventSharedPositions || candidate == null)
+        {
+            return true;
+        }
+
+        ActiveMovers.RemoveAll(mover => mover == null);
+        foreach (KidWaypointAnimationTester other in ActiveMovers)
+        {
+            if (other == this || !other.preventSharedPositions)
+            {
+                continue;
+            }
+
+            float separation = Mathf.Max(reservedPositionRadius, other.reservedPositionRadius);
+            float separationSquared = separation * separation;
+            if (IsClaimNear(candidate.Position, other.reservedDestination, separationSquared) ||
+                IsClaimNear(candidate.Position, other.reservedChairDestination, separationSquared) ||
+                IsClaimNear(candidate.Position, other.previousActivityWaypoint, separationSquared) ||
+                IsClaimNear(candidate.Position, other.currentChairSeat, separationSquared) ||
+                (!other.isTravelling &&
+                 (other.transform.position - candidate.Position).sqrMagnitude < separationSquared))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsClaimNear(Vector3 position, LabeledWaypoint claim, float separationSquared)
+    {
+        return claim != null && (claim.Position - position).sqrMagnitude < separationSquared;
+    }
+
+    private void ClearPendingReservations()
+    {
+        reservedDestination = null;
+        reservedChairDestination = null;
+        reservedChairWillWatchTelevision = false;
+        if (agent != null)
+        {
+            agent.updateRotation = true;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (!isTravelling && currentChairSeat != null && deviceUsageController != null &&
+            deviceUsageController.IsWatchingTelevision)
+        {
+            RotateTowardTelevision(televisionTurnSpeed * Time.deltaTime);
+        }
+    }
+
+    private void UpdateTelevisionFacingWhileApproaching()
+    {
+        if (!faceTelevisionWhileApproaching || !reservedChairWillWatchTelevision ||
+            televisionLookTarget == null || agent == null || !agent.enabled ||
+            !agent.isOnNavMesh || agent.pathPending ||
+            agent.remainingDistance > televisionFacingApproachDistance)
+        {
+            return;
+        }
+
+        agent.updateRotation = false;
+        RotateTowardTelevision(televisionTurnSpeed * Time.deltaTime);
+    }
+
+    private void FaceTelevisionImmediately()
+    {
+        RotateTowardTelevision(360f);
+    }
+
+    private void RotateTowardTelevision(float maximumDegrees)
+    {
+        if (televisionLookTarget == null)
+        {
+            return;
+        }
+
+        Vector3 direction = televisionLookTarget.position - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            return;
+        }
+
+        Quaternion targetRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation,
+            Mathf.Max(0f, maximumDegrees));
     }
 
     private string PickValidAnimation(string[] candidates, string fallback)
@@ -713,5 +903,10 @@ public class KidWaypointAnimationTester : MonoBehaviour
         brainrotViewsBeforeAnxiety = Mathf.Max(1, brainrotViewsBeforeAnxiety);
         normalViewsToRecoverOneLevel = Mathf.Max(1, normalViewsToRecoverOneLevel);
         normalViewsBeforeHappy = Mathf.Max(1, normalViewsBeforeHappy);
+        firstActivityWaypointIndex = Mathf.Max(0, firstActivityWaypointIndex);
+        reservedPositionRadius = Mathf.Max(0.1f, reservedPositionRadius);
+        unavailablePositionRetryDelay = Mathf.Max(0.1f, unavailablePositionRetryDelay);
+        televisionFacingApproachDistance = Mathf.Max(0.1f, televisionFacingApproachDistance);
+        televisionTurnSpeed = Mathf.Max(1f, televisionTurnSpeed);
     }
 }

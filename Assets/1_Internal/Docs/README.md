@@ -122,13 +122,26 @@ Khi reset, card cu va overlay bi loai, slot duoc refill
 bang video hop le khac; video da blacklist khong duoc chon lai lam recommendation.
 Blacklist chua duoc luu vao save data. `Suggest more videos` hien chi dong menu, chua thay doi recommendation
 weight. Khi them `RecommendationModel`, hai nut nay nen goi intervention API
-thay vi de `PhoneVideoFeedUI` tu quan ly persistence.
+thay vi de tung `KidFeedCycleController` tu quan ly persistence.
 
-Phone thay ngau nhien toan bo `6` card sau moi `15` giay chi khi `Kid_Forcus`
-khong theo doi Kid. Khi dang focus Kid hoac mo viewer, timer Phone tam dung. Lan
+Noah va Ethan moi Kid so huu rieng mot danh sach `6` card, blacklist va timer
+Phone tren `KidFeedCycleController` cua chinh minh. Moi Phone thay toan bo feed
+sau `5` giay khi PhoneScreen cua dung Kid do dang dong. Mo Phone cua Noah chi
+pause timer Noah; Phone cua Ethan van reset doc lap. Lan
 reset uu tien sau video hoan toan khac danh sach cu. Card `No recommend` duoc giu
 overlay den lan reset sau khi roi focus, sau do bi loai va khong bao gio duoc
-chon lai trong phien Phone hien tai.
+chon lai trong phien Phone cua Kid do; no khong an video tren Phone Kid con lai.
+
+`PhoneVideoFeedUI` chi lam presenter cho hai owner da serialize san. Khi Enter
+mo PhoneScreen, presenter lay `SelectedKidId`, chuyen sang feed dung Kid va mo
+thang `CurrentPhoneVideo` tai tien do xem hien tai. Vi vay luc badge `SUSPICIOUS`
+hien, nguoi choi vao Phone se thay ngay chinh clip Kid dang xem de xu ly.
+
+Ca Phone va TV bat `Balance Harmful Content`: moi feed 6 card dung ty le muc
+tieu gan `3 Normal : 1 Brainrot/Horror` va gioi han cung toi da `2` card xau.
+Ba gia tri `Balance Harmful Content`, `Normal Videos Per Harmful Video` va
+`Maximum Harmful Videos Per Feed` duoc serialize rieng tren hai feed, nen co the
+chinh trong Inspector va khong chia se blacklist/data runtime.
 
 Panel va backdrop luon duoc dua len tren cung khi mo de khong bi `RectMask2D`
 cua `VideoScroll` cat. Neu scene cu chua co `VideoOptionsBackdrop`, runtime tao
@@ -163,30 +176,42 @@ thumbnail trong `Data/Video_Processed`, tao lai JPG sheet, sau do cap nhat
 
 ## Kid xem video tuan tu
 
-Scene co component `Controller/Kid Sequential Video Viewer` duoc gan san truoc
-khi Play. Component doc truc tiep `PhoneVideoLibrary.asset`, bat dau tu index `0`
-va duyet lan luot den cuoi danh sach; no khong shuffle va khong goi
-`PhoneVideoFeedUI.RefreshRandomVideos()` nua.
+Scene co ba component sequential viewer doc lap duoc gan san truoc khi Play:
+Kid1 bat dau index `0`, Kid2 index `1`, Kid3 index `2`. Moi component co bo dem,
+trang thai nghi ngo va tien do tieu thu rieng. Kid dung Phone duyet lan luot dung
+6 entry trong `PhoneVisibleVideos` cua controller rieng, khong dung feed chung.
+Kid xem TV chi doc dung
+`TelevisionVideoFeedUI.CurrentBroadcastVideo`, tuc chuong trinh dang hien tren
+man TV, khong lay nham card khac trong feed. Mot broadcast TV da hoan tat chi
+duoc tinh effect mot lan trong luc frame tiep tuc lap. Neu feed/broadcast doi,
+tien do clip cu bi huy truoc khi dem clip moi.
+
+Moi viewer loc `Don't recommend` theo dung thiet bi dang xem: Phone doc blacklist
+Phone, TV doc blacklist TV. Kid2 co ca hai reference nhung khong chia se state
+giua hai feed. Video bi an giua luc dang xem se bi huy suspicion/watch progress
+va bo qua truoc khi ap dung Brainrot/Horror effect.
 
 - Bo dem video chi chay khi Kid dang o vi tri ngoi dat hoac ngoi ghe.
 - Thoi gian xem lay tu metadata `duration`; neu metadata khong hop le thi dung
   `Fallback Watch Seconds = 6`.
-- Khi `Kid_Forcus` dang theo doi Kid1, bo dem video tam dung va tiep tuc sau khi
+- Khi `Kid_Forcus` dang theo doi dung Kid do, bo dem video cua Kid do tam dung va tiep tuc sau khi
   quay lai `Main_room`.
-- Moi clip bat dau bang trang thai hien thi tam `Suspicious` trong `2-4` giay;
-  thoi gian nay khong tinh la da tieu thu video.
-- `Horror` chi ap dung sau khi het `Suspicious` va Kid tieu thu that them `3`
-  giay. `Brainrot` va `Normal` ap dung sau khi Kid xem het thoi luong clip.
+- Moi clip bat dau bang trang thai hien thi tam `Suspicious` trong `2-4` giay.
+- Brainrot/Horror chua bi `No recommend` chi co pha `Suspicious` ngau nhien
+  `2-4` giay de can thiep. Neu bi an trong pha nay, toan bo tien do clip bi huy.
+- Scene bat `Panic After Unresolved Suspicion` va dat nguong `1-1`: harmful
+  video con ton tai khi Suspicious ket thuc se ep Kid sang `Panic` ngay, bat ke
+  video do la Brainrot hay Horror, va hien badge `NEGATIVE`.
+- `Normal` van ap dung sau khi Kid xem het thoi luong metadata.
 - `Loop Library` cho phep quay lai video dau tien sau video cuoi. Tat checkbox
   nay neu chi muon duyet thu vien mot lan.
 
 ### Tac dong cam xuc
 
-- `Brainrot`: tang `Brainrot Exposure`; mac dinh du 3 luot thi Kid chuyen sang
-  `Anxious` va dung nhom animation emotional.
+- `Brainrot`: neu khong bi go trong pha `Suspicious`, Kid chuyen thang `Panic`.
 - `Normal`: giam mot exposure. Hai video Normal lien tiep phuc hoi mot bac
   `Panic -> Anxious -> Stable`; hai video Normal tiep theo dua `Stable -> Happy`.
-- `Horror`: sau giai doan nghi ngo va `3` giay tieu thu that thi dat `Panic`.
+- `Horror`: neu khong bi go trong pha `Suspicious`, Kid chuyen thang `Panic`.
 - `Suspicious` chi la VFX tam thoi, khong ghi de state that va khong tang/giam
   `Brainrot Exposure`.
 - Khi dong phone, Kid doi sang animation phu hop voi tu the dang dung/ngoi.
@@ -257,11 +282,14 @@ controller khong tu them component luc Play.
 - Khong con `KidRandomChatTester` tu bat chat bubble ngau nhien.
 - Khong con `WaypointArrivalDetector` khong duoc tham chieu.
 - Camera, Kid, chat anchor va PhoneScreen khong con duoc quet theo ten trong scene.
-- `PhoneVideoFeedUI` rebuild feed theo chu ky runtime `15` giay chi khi khong
+- `PhoneVideoFeedUI` rebuild feed theo chu ky runtime `5` giay chi khi khong
   focus Kid; timer tam dung trong `Kid_Forcus` va khi viewer video dang mo.
 - `ChatUiAnchorFollower` khong chay trong Edit Mode.
 - `KidWaypointAnimationTester` co `Start On Play` tren Inspector cua `Kid1`;
   tat checkbox nay neu khong muon Kid tu chay chuoi waypoint/animation.
+- Ca ba `KidWaypointAnimationTester` bat `Prevent Shared Positions`, giu truoc
+  waypoint va ghe trong ban kinh `0.8`; neu het vi tri trong thi doi `1` giay roi
+  thu lai. Vi vay hai Kid khong dung chung activity position hay cung ghe.
 - `RoundedRectGraphic` van dung `ExecuteAlways` de mesh bo goc hien dung trong
   Scene view; component nay khong doi camera, khong save scene va khong rebuild UI.
 
@@ -281,11 +309,29 @@ controller khong tu them component luc Play.
   moi 15 giay o diem hien tai. `Visit Waypoints In Order` duoc bat de duyet
   waypoint theo thu tu Inspector thay vi random dich den.
 
+## Card thong tin Kid
+
+`UI/Kid Character Info Cards` co ba card prebuilt su dung ba anh trong
+`Prefab/UI/Card_Character`. Khi `Kid_Forcus` theo doi Kid nao, chi card cua Kid do
+hien; khi ve `Main_room` hoac vao `TV_Forcus`, ca ba card an. Mood doc truc tiep
+`VisualEmotion` va co the noi them trang thai dang xem Phone/TV. Tat ca noi dung,
+reference, text state va tuy chon an khi PhoneScreen mo deu expose tren Inspector.
+Ca ba anh da nam san tren component `Image` trong scene; card khong dung duoc de
+inactive va runtime chi active card dung Kid, khong tao UI/component hay load
+sprite. Card nam o goc duoi-trai, can day voi PhoneScreen; text duoc can rieng
+theo duong ke tren tung anh. Badge cam xuc va badge dang xem thiet bi duoc phong
+to dong deu `1.25x`. Chi tiet xem
+[KidCharacterInfoCards.md](KidCharacterInfoCards.md).
+
+Ten hien thi tren ba card la `Noah`, `Ethan`, `Liam`. ID noi bo van la
+`Kid1/Kid2/Kid3` de khong pha reference camera, emotion va device logic.
+
 ## Loai thiet bi cua Kid
 
 Moi Kid dung `KidDeviceUsageController` de chon mot trong ba loai `Phone Only`,
-`Television Only` hoac `Phone And Television`. Kid1 trong scene hien la loai ket
-hop. Enter mo phone neu Kid dang xem phone, mo `TV_Forcus` neu Kid dang xem TV;
+`Television Only` hoac `Phone And Television`. Scene hien cau hinh Kid1 =
+`Phone Only`, Kid2 = `Phone And Television`, Kid3 = `Television Only`. Enter mo
+phone neu Kid dang xem phone, mo `TV_Forcus` neu Kid dang xem TV;
 Kid ket hop o animation khac se khong chuyen camera. Child object tag `phone_handle` chi active trong animation
 xem phone. Chi tiet xem [KidDeviceUsage.md](KidDeviceUsage.md).
 
@@ -322,7 +368,7 @@ mot che do camera nhan input.
   Card van giu
   vi tri nhu Phone nhung `OpenButton` va `MoreButton` bi khoa. Video no-recommend
   khong duoc mo, broadcast, thay vao slot khac hay chon lai trong cung phien Play.
-  O lan broadcast/reset `15` giay ke tiep, toan bo 6 card duoc tao lai bang
+  O lan broadcast/reset `10` giay ke tiep, toan bo 6 card duoc tao lai bang
   danh sach hop le moi va overlay bien mat.
 - Sau dau ba cham cua 6 card duoc dong bo cung RectTransform, font `0.0085` va
   alignment; khong con truong hop `Video 01` co dau ba cham lon hon cac card khac.
@@ -343,8 +389,9 @@ mot che do camera nhan input.
   xem tiep dung video va dung timestamp dang chay.
 - Player TV dung cung sprite sheet 8x8, toc do 10 FPS va `RawImage.uvRect` nhu
   Phone; khong dung `VideoPlayer` va khong chieu MP4 truc tiep.
-- Moi broadcast chay ngau nhien trong khoang `Minimum Seconds Before Rotation`
-  den `Maximum Seconds Before Rotation` (scene mac dinh `15` giay). Khi het thoi gian, player
+- Moi broadcast chay trong khoang `Minimum Seconds Before Rotation`
+  den `Maximum Seconds Before Rotation` (scene dat ca hai bang `10` giay). Trong
+  khoang nay frame sequence duoc lap lien tuc. Khi het thoi gian, player
   dong; toan bo 6 card duoc thay bang mot danh sach ngau nhien moi, uu tien khong
   trung bat ky card nao cua danh sach cu. Neu TV khong focus, broadcast moi bat dau ngay; neu dang focus,
   man hinh quay ve feed de nguoi choi chon.
@@ -353,7 +400,7 @@ mot che do camera nhan input.
   no khong tu dong dong player, thay slot hay mo video moi. Khi thoat focus, bo dem tiep tuc.
 - Bam nut `X` chi dong player, khong thay danh sach video. Khi thoat
   `TV_Forcus`, TV phat lai mot video trong danh sach hien tai; feed chi duoc thay
-  sau khi broadcast chay du chu ky `15` giay.
+  sau khi broadcast chay du chu ky `10` giay.
 - `Replace Entire Feed After Timed Rotation` quyet dinh co thay toan bo 6 card
   sau khi chu ky thoi gian hoan tat hay khong.
 - `Auto Play When Not Focused`, hai gioi han thoi gian va quy tac thay slot deu duoc
@@ -366,9 +413,20 @@ mot che do camera nhan input.
 - TV tai toan bo image sequence 10 FPS trong `Awake`, truoc khi nguoi dung chon
   video; khong co delayed loader hay runtime bootstrap gan script.
 
+## Animator graph integrity
+
+`Assets/Free Cube Pig Cute Pro Series/FBX/No Root/Quadruped.controller` duoc
+tham chieu boi cac Pig prefab trong scene. Asset goc tung chua `17` transition
+document mo coi: khong state nao so huu chung va destination state cung khong con
+ton tai. Cac document hong da duoc loai bo; hai state hop le `Idle` va
+`Run Forward In Place`, animation clip cua chung, va hai transition hai chieu
+van duoc giu nguyen. Viec nay ngan `UnityEditor.Graphs.Edge.WakeUp()` dung edge
+hong sau moi lan assembly/domain reload va khong them bat ky runtime script nao.
+
 ## Kid emotion VFX
 
-Kid1 co `KidEmotionVfxController` va hai anchor VFX doc lap:
+Kid1, Kid2 va Kid3 moi Kid co mot `KidEmotionVfxController`, activity/device
+controller, animator/NavMeshAgent va hai anchor VFX doc lap:
 `emotion_Main_room` cho camera tong, `emotion_Kid_Forcus` cho camera focus.
 `emotion_Main_room_root` nam tai dinh dau Kid va la moc vi tri on dinh. Anchor
 ghi lai world offset va world rotation cua `emotion_Main_room` cung
@@ -389,8 +447,9 @@ Timing scene hien tai: `Stable = 5-7s`, `Happy = 5-7s`, trang thai xau
 `Anxious/Panic = 3-5s`.
 
 UI overlay co object dung san `Kid1 Emotion Status`, gom nen bo goc, text tieng
-Anh va hai sprite `arrow-circle-up/down` mau trang. Badge chi hien khi hover Kid1
-trong `Main_room` hoac khi `Kid_Forcus` dang theo doi Kid1; `TV_Forcus` luon an.
+Anh va hai sprite `arrow-circle-up/down` mau trang. Ten object duoc giu de tranh
+pha reference cu, nhung component co mang `Kids` serialize cho ca ba Kid va chi
+theo Kid dang hover/focus, nen badge khong chong len nhau. `TV_Forcus` luon an.
 `Stable/Happy` hien `POSITIVE` mau xanh, `Anxious/Panic` hien `NEGATIVE` mau do.
 Chi tiet logic xem video va cac field Inspector nam trong
 [KidSequentialVideoAndStatus.md](KidSequentialVideoAndStatus.md).

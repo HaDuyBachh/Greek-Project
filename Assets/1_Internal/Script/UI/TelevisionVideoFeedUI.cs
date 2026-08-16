@@ -57,6 +57,14 @@ namespace GreekProject.UI
         [SerializeField, Range(1, 6)] private int visibleVideoCount = 6;
         [SerializeField] private bool randomizeInitialVideos = true;
 
+        [Header("Feed Content Mix")]
+        [SerializeField, Tooltip("Keep each feed from being filled with Brainrot/Horror videos.")]
+        private bool balanceHarmfulContent = true;
+        [SerializeField, Min(1), Tooltip("Approximate number of Normal videos for every Brainrot/Horror video.")]
+        private int normalVideosPerHarmfulVideo = 3;
+        [SerializeField, Range(1, 3), Tooltip("Hard limit for Brainrot/Horror cards in one six-card feed.")]
+        private int maximumHarmfulVideosPerFeed = 2;
+
         [Header("Prebuilt Feed References")]
         [SerializeField] private RectTransform feedRoot;
         [SerializeField] private CardSlot[] cardSlots = new CardSlot[6];
@@ -84,8 +92,8 @@ namespace GreekProject.UI
 
         [Header("TV Broadcast")]
         [SerializeField] private bool autoPlayWhenNotFocused = true;
-        [SerializeField, Min(1f)] private float minimumSecondsBeforeRotation = 15f;
-        [SerializeField, Min(1f)] private float maximumSecondsBeforeRotation = 15f;
+        [SerializeField, Min(1f)] private float minimumSecondsBeforeRotation = 10f;
+        [SerializeField, Min(1f)] private float maximumSecondsBeforeRotation = 10f;
         [SerializeField, Tooltip("Replace the complete six-card feed only after the timed broadcast interval.")]
         private bool replaceEntireFeedAfterTimedRotation = true;
 
@@ -119,6 +127,9 @@ namespace GreekProject.UI
         private float broadcastElapsedTime;
         private float secondsBeforeRotation = 10f;
         private int displayedSequenceFrame = -1;
+
+        public IReadOnlyList<VideoLibraryData.VideoEntry> VisibleVideos => visibleVideos;
+        public VideoLibraryData.VideoEntry CurrentBroadcastVideo => activeVideo;
 
         private void Awake()
         {
@@ -228,19 +239,11 @@ namespace GreekProject.UI
 
         private void SelectInitialVideos()
         {
-            visibleVideos.Clear();
             List<VideoLibraryData.VideoEntry> candidates = new(videoLibrary.Videos);
-            candidates.RemoveAll(video => video == null || IsHidden(video));
-            if (randomizeInitialVideos)
-            {
-                Shuffle(candidates);
-            }
+            candidates.RemoveAll(video => video == null || IsHidden(video) || !frameSequences.ContainsKey(video));
 
             int count = Mathf.Min(visibleVideoCount, cardSlots.Length, candidates.Count);
-            for (int index = 0; index < count; index++)
-            {
-                visibleVideos.Add(candidates[index]);
-            }
+            SelectVideosWithContentMix(candidates, null, count, randomizeInitialVideos);
         }
 
         private void BindPrebuiltCards()
@@ -627,30 +630,113 @@ namespace GreekProject.UI
                 }
             }
 
-            List<VideoLibraryData.VideoEntry> freshCandidates =
-                eligibleVideos.FindAll(video => !previousVideos.Contains(video));
-            Shuffle(freshCandidates);
-            visibleVideos.Clear();
             int targetCount = Mathf.Min(visibleVideoCount, cardSlots.Length, eligibleVideos.Count);
-            for (int index = 0; index < freshCandidates.Count && visibleVideos.Count < targetCount; index++)
+            SelectVideosWithContentMix(eligibleVideos, previousVideos, targetCount, true);
+        }
+
+        private void SelectVideosWithContentMix(
+            List<VideoLibraryData.VideoEntry> candidates,
+            IList<VideoLibraryData.VideoEntry> previousVideos,
+            int targetCount,
+            bool shuffle)
+        {
+            visibleVideos.Clear();
+            if (candidates == null || targetCount <= 0)
             {
-                visibleVideos.Add(freshCandidates[index]);
+                return;
             }
+
+            HashSet<VideoLibraryData.VideoEntry> previous = previousVideos != null
+                ? new HashSet<VideoLibraryData.VideoEntry>(previousVideos)
+                : new HashSet<VideoLibraryData.VideoEntry>();
+            List<VideoLibraryData.VideoEntry> freshNormal = new();
+            List<VideoLibraryData.VideoEntry> freshHarmful = new();
+            List<VideoLibraryData.VideoEntry> fallbackNormal = new();
+            List<VideoLibraryData.VideoEntry> fallbackHarmful = new();
+
+            foreach (VideoLibraryData.VideoEntry video in candidates)
+            {
+                bool harmful = IsHarmful(video);
+                bool wasPreviouslyVisible = previous.Contains(video);
+                List<VideoLibraryData.VideoEntry> destination = harmful
+                    ? wasPreviouslyVisible ? fallbackHarmful : freshHarmful
+                    : wasPreviouslyVisible ? fallbackNormal : freshNormal;
+                destination.Add(video);
+            }
+
+            if (shuffle)
+            {
+                Shuffle(freshNormal);
+                Shuffle(freshHarmful);
+                Shuffle(fallbackNormal);
+                Shuffle(fallbackHarmful);
+            }
+
+            freshNormal.AddRange(fallbackNormal);
+            freshHarmful.AddRange(fallbackHarmful);
+            if (!balanceHarmfulContent)
+            {
+                freshNormal.AddRange(freshHarmful);
+                if (shuffle)
+                {
+                    Shuffle(freshNormal);
+                }
+
+                AddVideos(freshNormal, targetCount);
+                return;
+            }
+
+            int ratioSize = Mathf.Max(2, normalVideosPerHarmfulVideo + 1);
+            int desiredHarmful = Mathf.RoundToInt(targetCount / (float)ratioSize);
+            desiredHarmful = Mathf.Clamp(desiredHarmful, 1,
+                Mathf.Min(maximumHarmfulVideosPerFeed, targetCount));
+            int desiredNormal = targetCount - desiredHarmful;
+            AddVideos(freshNormal, desiredNormal);
+            int countBeforeHarmful = visibleVideos.Count;
+            AddVideos(freshHarmful, desiredHarmful);
+            int harmfulAdded = visibleVideos.Count - countBeforeHarmful;
 
             if (visibleVideos.Count < targetCount)
             {
-                eligibleVideos.RemoveAll(visibleVideos.Contains);
-                Shuffle(eligibleVideos);
-                for (int index = 0; index < eligibleVideos.Count && visibleVideos.Count < targetCount; index++)
-                {
-                    visibleVideos.Add(eligibleVideos[index]);
-                }
+                AddVideos(freshNormal, targetCount - visibleVideos.Count);
+                int harmfulCapacity = Mathf.Max(0, maximumHarmfulVideosPerFeed - harmfulAdded);
+                AddVideos(freshHarmful, Mathf.Min(
+                    targetCount - visibleVideos.Count, harmfulCapacity));
             }
+
+            if (shuffle)
+            {
+                Shuffle(visibleVideos);
+            }
+        }
+
+        private void AddVideos(List<VideoLibraryData.VideoEntry> source, int maximumToAdd)
+        {
+            int addCount = Mathf.Min(maximumToAdd, source.Count);
+            for (int index = 0; index < addCount; index++)
+            {
+                visibleVideos.Add(source[index]);
+            }
+
+            if (addCount > 0)
+            {
+                source.RemoveRange(0, addCount);
+            }
+        }
+
+        private static bool IsHarmful(VideoLibraryData.VideoEntry video)
+        {
+            return video != null && video.contentEffect != VideoContentEffect.Normal;
         }
 
         private bool IsHidden(VideoLibraryData.VideoEntry video)
         {
             return video != null && !string.IsNullOrWhiteSpace(video.id) && hiddenVideoIds.Contains(video.id);
+        }
+
+        public bool IsVideoHiddenForKid(VideoLibraryData.VideoEntry video)
+        {
+            return IsHidden(video);
         }
 
         private void TogglePlayback()

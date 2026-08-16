@@ -7,15 +7,25 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class KidEmotionStatusIndicator : MonoBehaviour
 {
+    [Serializable]
+    private sealed class KidBinding
+    {
+        public string kidId = "Kid1";
+        public KidWaypointAnimationTester activityController;
+        public KidDeviceUsageController deviceUsageController;
+        public Transform worldAnchor;
+    }
+
     [Header("Kid State")]
-    [SerializeField] private string kidId = "Kid1";
-    [SerializeField] private KidWaypointAnimationTester activityController;
-    [SerializeField] private KidDeviceUsageController deviceUsageController;
+    [SerializeField] private KidBinding[] kids;
+    [SerializeField, HideInInspector] private string kidId = "Kid1";
+    [SerializeField, HideInInspector] private KidWaypointAnimationTester activityController;
+    [SerializeField, HideInInspector] private KidDeviceUsageController deviceUsageController;
     [SerializeField] private KidFocusCameraController kidFocusController;
     [SerializeField] private TelevisionFocusCameraController televisionFocusController;
 
     [Header("Projection")]
-    [SerializeField] private Transform worldAnchor;
+    [SerializeField, HideInInspector] private Transform worldAnchor;
     [SerializeField] private Camera mainRoomCamera;
     [SerializeField] private Camera kidFocusCamera;
     [SerializeField] private Canvas canvas;
@@ -51,6 +61,7 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
     private bool hasDisplayedEmotion;
     private KidDeviceUsageController.DeviceActivity displayedDeviceActivity;
     private bool hasDisplayedDeviceActivity;
+    private KidBinding activeKid;
 
     private void Awake()
     {
@@ -62,13 +73,21 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!ShouldBeVisible(out Camera projectionCamera))
+        if (!TryResolveVisibleKid(out KidBinding visibleKid, out Camera projectionCamera))
         {
+            activeKid = null;
             SetVisible(false);
             return;
         }
 
-        Vector3 screenPoint = projectionCamera.WorldToScreenPoint(worldAnchor.position);
+        if (activeKid != visibleKid)
+        {
+            activeKid = visibleKid;
+            hasDisplayedEmotion = false;
+            hasDisplayedDeviceActivity = false;
+        }
+
+        Vector3 screenPoint = projectionCamera.WorldToScreenPoint(visibleKid.worldAnchor.position);
         if (screenPoint.z <= 0f)
         {
             SetVisible(false);
@@ -87,31 +106,66 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
         }
     }
 
-    private bool ShouldBeVisible(out Camera projectionCamera)
+    private bool TryResolveVisibleKid(out KidBinding visibleKid, out Camera projectionCamera)
     {
+        visibleKid = null;
         projectionCamera = null;
         if (televisionFocusController != null && televisionFocusController.IsFocusing)
         {
             return false;
         }
 
-        bool isFocused = kidFocusController != null &&
-                         string.Equals(kidFocusController.SelectedKidId, kidId, StringComparison.OrdinalIgnoreCase);
-        if (isFocused && kidFocusCamera != null && kidFocusCamera.gameObject.activeInHierarchy)
+        string selectedKidId = kidFocusController != null ? kidFocusController.SelectedKidId : string.Empty;
+        visibleKid = FindKid(selectedKidId);
+        if (visibleKid != null && kidFocusCamera != null && kidFocusCamera.gameObject.activeInHierarchy)
         {
             projectionCamera = kidFocusCamera;
             return true;
         }
 
-        bool isHovered = kidFocusController != null &&
-                         string.Equals(kidFocusController.HoveredKidId, kidId, StringComparison.OrdinalIgnoreCase);
-        if (isHovered && mainRoomCamera != null && mainRoomCamera.gameObject.activeInHierarchy)
+        string hoveredKidId = kidFocusController != null ? kidFocusController.HoveredKidId : string.Empty;
+        visibleKid = FindKid(hoveredKidId);
+        if (visibleKid != null && mainRoomCamera != null && mainRoomCamera.gameObject.activeInHierarchy)
         {
             projectionCamera = mainRoomCamera;
             return true;
         }
 
+        visibleKid = null;
         return false;
+    }
+
+    private KidBinding FindKid(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        if (kids != null)
+        {
+            foreach (KidBinding candidate in kids)
+            {
+                if (candidate != null &&
+                    string.Equals(candidate.kidId, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        if (string.Equals(kidId, id, StringComparison.OrdinalIgnoreCase))
+        {
+            return new KidBinding
+            {
+                kidId = kidId,
+                activityController = activityController,
+                deviceUsageController = deviceUsageController,
+                worldAnchor = worldAnchor
+            };
+        }
+
+        return null;
     }
 
     private void SetScreenPosition(RectTransform root, Vector2 screenPosition)
@@ -161,7 +215,7 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
 
     private bool RefreshDeviceAppearance(bool force)
     {
-        KidDeviceUsageController.DeviceActivity activity = ResolveDeviceActivity();
+        KidDeviceUsageController.DeviceActivity activity = ResolveDeviceActivity(activeKid);
         bool isWatching = activity != KidDeviceUsageController.DeviceActivity.None;
         if (!force && hasDisplayedDeviceActivity && activity == displayedDeviceActivity)
         {
@@ -190,27 +244,29 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
         return true;
     }
 
-    private KidDeviceUsageController.DeviceActivity ResolveDeviceActivity()
+    private static KidDeviceUsageController.DeviceActivity ResolveDeviceActivity(KidBinding kid)
     {
-        if (deviceUsageController == null)
+        KidDeviceUsageController device = kid?.deviceUsageController;
+        if (device == null)
         {
             return KidDeviceUsageController.DeviceActivity.None;
         }
 
-        if (deviceUsageController.IsWatchingPhone)
+        if (device.IsWatchingPhone)
         {
             return KidDeviceUsageController.DeviceActivity.Phone;
         }
 
-        return deviceUsageController.IsWatchingTelevision
+        return device.IsWatchingTelevision
             ? KidDeviceUsageController.DeviceActivity.Television
             : KidDeviceUsageController.DeviceActivity.None;
     }
 
     private void RefreshAppearance(bool force)
     {
-        KidWaypointAnimationTester.EmotionState emotion = activityController != null
-            ? activityController.CurrentEmotion
+        KidWaypointAnimationTester activity = activeKid?.activityController;
+        KidWaypointAnimationTester.EmotionState emotion = activity != null
+            ? activity.CurrentEmotion
             : KidWaypointAnimationTester.EmotionState.Stable;
         if (!force && hasDisplayedEmotion && emotion == displayedEmotion)
         {
@@ -268,9 +324,8 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
 
     private void ValidatePrebuiltReferences()
     {
-        if (string.IsNullOrWhiteSpace(kidId) || activityController == null || deviceUsageController == null ||
-            kidFocusController == null ||
-            televisionFocusController == null || worldAnchor == null || mainRoomCamera == null ||
+        if (!HasValidKidBindings() || kidFocusController == null ||
+            televisionFocusController == null || mainRoomCamera == null ||
             kidFocusCamera == null || canvas == null || canvasRoot == null || indicatorRoot == null || canvasGroup == null ||
             background == null || arrowUpIcon == null || arrowDownIcon == null || statusText == null ||
             deviceIndicatorRoot == null || deviceCanvasGroup == null || deviceBackground == null ||
@@ -278,5 +333,25 @@ public sealed class KidEmotionStatusIndicator : MonoBehaviour
         {
             Debug.LogError("Kid Emotion Status Indicator requires all Kid, camera, sprite and prebuilt UI references assigned before Play.", this);
         }
+    }
+
+    private bool HasValidKidBindings()
+    {
+        if (kids != null && kids.Length > 0)
+        {
+            foreach (KidBinding kid in kids)
+            {
+                if (kid == null || string.IsNullOrWhiteSpace(kid.kidId) || kid.activityController == null ||
+                    kid.deviceUsageController == null || kid.worldAnchor == null)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(kidId) && activityController != null &&
+               deviceUsageController != null && worldAnchor != null;
     }
 }

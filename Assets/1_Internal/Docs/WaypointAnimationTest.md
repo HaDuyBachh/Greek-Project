@@ -43,6 +43,23 @@ Tat ca danh sach tren deu duoc serialize trong component tren `Kid1`, vi vay co 
   hai bang `15` de interval khong random.
 - `Visit Waypoints In Order`: bat de duyet waypoint tuan tu; tat de quay lai cach
   chon dich ngau nhien.
+- `First Activity Waypoint Index`: offset bat dau cua tung Kid. Scene dung `0`,
+  `1`, `2` cho Kid1, Kid2, Kid3.
+- `Prevent Shared Positions`: giu quyen su dung activity waypoint va ghe ngay
+  tu luc Kid chon dich. Mot Kid khac se bo qua waypoint/ghe da co nguoi dung
+  hoac da duoc dat truoc.
+- `Reserved Position Radius`: khoang cach toi thieu giua hai vi tri cua hai Kid;
+  scene dat `0.8` cho ca ba Kid. Khi chon sofa, `enter_sofa` va `sit_chair` gan
+  nhat con trong deu duoc giu cung luc, nen hai Kid khong the snap vao cung ghe.
+- `Unavailable Position Retry Delay`: neu tat ca dich phu hop dang co nguoi,
+  Kid cho `1` giay roi kiem tra lai thay vi dung controller hoac di vao cho da co
+  nguoi.
+- `Television Look Target`: transform TV duoc gan san trong scene cho ca ba Kid.
+  Neu chair activity sap toi la TV, Kid bat dau xoay dan ve TV trong
+  `Television Facing Approach Distance = 1.5`, sau do tiep tuc giu huong TV khi
+  dang ngoi xem, ke ca luc animation cam xuc thay animation idle.
+- `Face Television While Approaching` va `Television Turn Speed = 240` expose
+  tren Inspector; runtime khong tim TV theo ten.
 - `Travel Timeout`: thoi gian toi da cho mot luot di.
 - `Walk/Run Speed`: toc do NavMesh tuong ung voi animation di/chay.
 - Bo chon `KidWaypointAnimationTester` tren `Kid1` de dung che do test tu dong.

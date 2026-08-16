@@ -2,18 +2,19 @@
 
 ## Scene setup
 
-`Kid1` in `Assets/1_Internal/Scenes/1_Main.unity` has a prebuilt
-`KidEmotionVfxController`. It uses two separate anchors:
+`Kid1`, `Kid2` and `Kid3` in `Assets/1_Internal/Scenes/1_Main.unity` each have an
+independent prebuilt `KidEmotionVfxController`. Every controller uses that Kid's
+own two display anchors and head root:
 
-- `emotion_Main_room_root`: stable tracking point at the top of Kid1's head.
+- `emotion_Main_room_root`: stable tracking point at the top of that Kid's head.
 - `emotion_Main_room`: VFX visible from the overview camera.
-- `emotion_Kid_Forcus`: VFX visible only while `Kid_Forcus` is following Kid1.
+- `emotion_Kid_Forcus`: VFX visible only while `Kid_Forcus` follows that Kid.
 
-At `Awake`, the controller records the pre-Play world offset and world rotation
-of both display anchors relative to `emotion_Main_room_root`. Every
+At `Awake`, each controller records the pre-Play world offset and world rotation
+of its own display anchors relative to its `emotion_Main_room_root`. Every
 `LateUpdate`, it applies `current root position + recorded world offset` and the
-recorded world rotation. The anchors therefore move with Kid1 but do not orbit
-or rotate when Kid1 turns. No camera-facing or billboard placement logic is
+recorded world rotation. The anchors therefore move with their Kid but do not
+orbit or rotate when that Kid turns. No camera-facing or billboard placement logic is
 used; the scene pose authored before Play is the source of truth.
 
 `kid_focus_point` keeps the old fixed position previously used by
@@ -47,10 +48,10 @@ the previous variant.
 ## Camera rules
 
 - `Main_room` active: only a variant below `emotion_Main_room` may be visible.
-- `Kid_Forcus` following Kid1: only a variant below `emotion_Kid_Forcus` may be visible.
-- `Kid_Forcus` following another Kid: Kid1 focus VFX stays hidden.
+- `Kid_Forcus` following one Kid: only that Kid's variant below
+  `emotion_Kid_Forcus` may be visible; the other focus pools stay hidden.
 - `TV_Forcus` active: both anchors are immediately hidden. This rule must be
-  used by every future Kid emotion controller, so TV never shows a Kid emotion.
+  used by all three Kid emotion controllers, so TV never shows any Kid emotion.
 - If no gameplay camera is active, all VFX stay hidden.
 
 The status badge uses white arrows and text on dark green `POSITIVE` or dark

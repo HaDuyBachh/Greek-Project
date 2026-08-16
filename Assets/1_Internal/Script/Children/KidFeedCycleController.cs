@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using GreekProject.Content;
+using GreekProject.UI;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public sealed class KidFeedCycleController : MonoBehaviour
@@ -10,6 +13,25 @@ public sealed class KidFeedCycleController : MonoBehaviour
     [SerializeField] private KidWaypointAnimationTester activityController;
     [SerializeField] private KidFocusCameraController kidFocusController;
     [SerializeField] private KidDeviceUsageController deviceUsageController;
+
+    [Header("Device-specific Hidden Videos")]
+    [SerializeField, FormerlySerializedAs("phoneFeed"),
+     Tooltip("Shared camera-facing Phone UI presenter only. This Kid owns its feed, blacklist and timer below.")]
+    private PhoneVideoFeedUI phonePresenter;
+    [SerializeField, Tooltip("TV blacklist. Assign only for Kids that can watch Television.")]
+    private TelevisionVideoFeedUI televisionFeed;
+    [SerializeField, Tooltip("Skip a video before it can apply an effect when it is hidden on the device currently being watched.")]
+    private bool skipVideosHiddenOnCurrentDevice = true;
+
+    [Header("Independent Phone Feed")]
+    [SerializeField, Min(1)] private int phoneVisibleVideoCount = 6;
+    [SerializeField] private bool randomizeInitialPhoneFeed = true;
+    [SerializeField] private bool autoRefreshPhoneFeed = true;
+    [SerializeField, Min(0.1f)] private float minimumPhoneRefreshSeconds = 5f;
+    [SerializeField, Min(0.1f)] private float maximumPhoneRefreshSeconds = 5f;
+    [SerializeField] private bool balancePhoneHarmfulContent = true;
+    [SerializeField, Min(1)] private int phoneNormalVideosPerHarmfulVideo = 3;
+    [SerializeField, Range(1, 3)] private int maximumPhoneHarmfulVideos = 2;
 
     [Header("Kid")]
     [SerializeField] private string kidId = "Kid1";
@@ -41,6 +63,16 @@ public sealed class KidFeedCycleController : MonoBehaviour
     [SerializeField, Min(0.1f), Tooltip("Horror becomes Panic only after this much actual consumption, never during suspicion.")]
     private float horrorConsumptionSecondsBeforeEffect = 3f;
 
+    [Header("Harmful Content Intervention")]
+    [SerializeField, Tooltip("Give the player time to mark a Brainrot/Horror video as Don't recommend before it counts against the Kid.")]
+    private bool useHarmfulInterventionWindow = true;
+    [SerializeField, Tooltip("If a harmful video survives its Suspicious preview, force Panic immediately instead of using the longer fallback timer.")]
+    private bool panicAfterUnresolvedSuspicion = true;
+    [SerializeField, Min(1f), Tooltip("Seconds from the first suspicious preview until an unhidden harmful video counts as consumed.")]
+    private float harmfulInterventionSeconds = 10f;
+    [SerializeField, Tooltip("Inclusive unresolved-video threshold. Keep this at 1-1 for immediate Panic after one missed Suspicious preview.")]
+    private Vector2Int harmfulVideosBeforeNegativeRange = new Vector2Int(1, 1);
+
     private int currentVideoIndex;
     private float watchedSeconds;
     private float requiredWatchSeconds;
@@ -49,10 +81,48 @@ public sealed class KidFeedCycleController : MonoBehaviour
     private bool currentVideoStarted;
     private bool suspicionCompleted;
     private bool currentEffectApplied;
+    private float harmfulInterventionElapsedSeconds;
+    private int unresolvedHarmfulVideos;
+    private int requiredHarmfulVideosBeforeNegative;
+    private VideoLibraryData.VideoEntry trackedVideo;
+    private VideoLibraryData.VideoEntry completedTelevisionVideo;
+    private readonly List<VideoLibraryData.VideoEntry> phoneVisibleVideos = new();
+    private readonly HashSet<string> hiddenPhoneVideoIds = new(StringComparer.OrdinalIgnoreCase);
+    private bool phoneFeedInitialized;
+    private float phoneRefreshElapsedSeconds;
+    private float secondsBeforePhoneRefresh;
+    private int phoneFeedRevision;
 
     public int CurrentVideoIndex => currentVideoIndex;
     public VideoLibraryData.VideoEntry CurrentVideo => GetCurrentVideo();
     public bool IsWatching => currentVideoStarted && CanWatchNow();
+    public string KidId => kidId;
+    public IReadOnlyList<VideoLibraryData.VideoEntry> PhoneVisibleVideos => phoneVisibleVideos;
+    public int PhoneFeedRevision => phoneFeedRevision;
+    public VideoLibraryData.VideoEntry CurrentPhoneVideo
+    {
+        get
+        {
+            if (deviceUsageController == null || !deviceUsageController.IsWatchingPhone)
+            {
+                return null;
+            }
+
+            return currentVideoStarted && trackedVideo != null &&
+                   phoneVisibleVideos.Contains(trackedVideo)
+                ? trackedVideo
+                : GetCurrentVideo();
+        }
+    }
+    public float CurrentPhonePlaybackSeconds => currentVideoStarted && trackedVideo != null &&
+                                                phoneVisibleVideos.Contains(trackedVideo)
+        ? suspicionSeconds + watchedSeconds
+        : 0f;
+
+    private void Awake()
+    {
+        EnsurePhoneFeedInitialized();
+    }
 
     private void Start()
     {
@@ -62,6 +132,8 @@ public sealed class KidFeedCycleController : MonoBehaviour
 
     private void Update()
     {
+        UpdateIndependentPhoneFeed();
+
         if (!startOnPlay)
         {
             SetSuspicionVisual(false);
@@ -75,22 +147,65 @@ public sealed class KidFeedCycleController : MonoBehaviour
             return;
         }
 
-        VideoLibraryData.VideoEntry video = GetCurrentVideo();
-        if (video == null)
+        if (!TryGetEligibleCurrentVideo(out VideoLibraryData.VideoEntry video))
         {
             return;
+        }
+
+        bool watchingTelevision = deviceUsageController != null &&
+                                  deviceUsageController.IsWatchingTelevision;
+        if (!watchingTelevision)
+        {
+            completedTelevisionVideo = null;
+        }
+        else if (completedTelevisionVideo == video)
+        {
+            return;
+        }
+        else
+        {
+            completedTelevisionVideo = null;
+        }
+
+        if (currentVideoStarted && trackedVideo != video)
+        {
+            ResetCurrentVideoProgress();
         }
 
         if (!currentVideoStarted)
         {
             currentVideoStarted = true;
+            trackedVideo = video;
             requiredWatchSeconds = ResolveWatchSeconds(video);
             watchedSeconds = 0f;
             suspicionSeconds = 0f;
             requiredSuspicionSeconds = ResolveSuspicionSeconds();
             suspicionCompleted = !showSuspicionBeforeEveryVideo;
             currentEffectApplied = false;
+            harmfulInterventionElapsedSeconds = 0f;
             SetSuspicionVisual(!suspicionCompleted);
+        }
+
+        bool isHarmfulVideo = IsHarmful(video);
+        if (isHarmfulVideo && useHarmfulInterventionWindow)
+        {
+            if (panicAfterUnresolvedSuspicion && suspicionCompleted)
+            {
+                RegisterUnresolvedHarmfulVideo(video);
+                CompleteCurrentVideo(video);
+                return;
+            }
+
+            if (!panicAfterUnresolvedSuspicion)
+            {
+                harmfulInterventionElapsedSeconds += Time.deltaTime;
+                if (harmfulInterventionElapsedSeconds >= harmfulInterventionSeconds)
+                {
+                    RegisterUnresolvedHarmfulVideo(video);
+                    CompleteCurrentVideo(video);
+                    return;
+                }
+            }
         }
 
         if (!suspicionCompleted)
@@ -103,6 +218,11 @@ public sealed class KidFeedCycleController : MonoBehaviour
 
             suspicionCompleted = true;
             SetSuspicionVisual(false);
+            return;
+        }
+
+        if (isHarmfulVideo && useHarmfulInterventionWindow)
+        {
             return;
         }
 
@@ -120,15 +240,13 @@ public sealed class KidFeedCycleController : MonoBehaviour
         }
 
         ApplyCurrentEffect(video);
-        AdvanceToNextVideo();
+        CompleteCurrentVideo(video);
     }
 
     [ContextMenu("Reset Sequential Video List")]
     public void ResetSequence()
     {
-        int count = videoLibrary != null && videoLibrary.Videos != null
-            ? videoLibrary.Videos.Count
-            : 0;
+        int count = GetCurrentFeedCount();
         currentVideoIndex = count > 0 ? Mathf.Clamp(firstVideoIndex, 0, count - 1) : 0;
         currentVideoStarted = false;
         suspicionCompleted = false;
@@ -137,6 +255,11 @@ public sealed class KidFeedCycleController : MonoBehaviour
         suspicionSeconds = 0f;
         requiredWatchSeconds = 0f;
         requiredSuspicionSeconds = 0f;
+        harmfulInterventionElapsedSeconds = 0f;
+        unresolvedHarmfulVideos = 0;
+        requiredHarmfulVideosBeforeNegative = ResolveHarmfulVideoThreshold();
+        trackedVideo = null;
+        completedTelevisionVideo = null;
         SetSuspicionVisual(false);
     }
 
@@ -215,13 +338,96 @@ public sealed class KidFeedCycleController : MonoBehaviour
 
     private VideoLibraryData.VideoEntry GetCurrentVideo()
     {
-        if (videoLibrary == null || videoLibrary.Videos == null ||
-            currentVideoIndex < 0 || currentVideoIndex >= videoLibrary.Videos.Count)
+        if (deviceUsageController != null && deviceUsageController.IsWatchingTelevision &&
+            televisionFeed != null)
+        {
+            return televisionFeed.CurrentBroadcastVideo;
+        }
+
+        IReadOnlyList<VideoLibraryData.VideoEntry> feed = GetCurrentFeed();
+        if (feed == null || currentVideoIndex < 0 || currentVideoIndex >= feed.Count)
         {
             return null;
         }
 
-        return videoLibrary.Videos[currentVideoIndex];
+        return feed[currentVideoIndex];
+    }
+
+    private IReadOnlyList<VideoLibraryData.VideoEntry> GetCurrentFeed()
+    {
+        if (deviceUsageController != null)
+        {
+            if (deviceUsageController.IsWatchingPhone && phonePresenter != null)
+            {
+                EnsurePhoneFeedInitialized();
+                return phoneVisibleVideos;
+            }
+
+            if (deviceUsageController.IsWatchingTelevision && televisionFeed != null)
+            {
+                return televisionFeed.VisibleVideos;
+            }
+        }
+
+        return videoLibrary?.Videos;
+    }
+
+    private int GetCurrentFeedCount()
+    {
+        if (deviceUsageController != null && deviceUsageController.IsWatchingTelevision &&
+            televisionFeed != null)
+        {
+            return televisionFeed.CurrentBroadcastVideo != null ? 1 : 0;
+        }
+
+        IReadOnlyList<VideoLibraryData.VideoEntry> feed = GetCurrentFeed();
+        return feed?.Count ?? 0;
+    }
+
+    private bool TryGetEligibleCurrentVideo(out VideoLibraryData.VideoEntry video)
+    {
+        video = null;
+        int count = GetCurrentFeedCount();
+        if (count == 0)
+        {
+            return false;
+        }
+
+        for (int inspected = 0; inspected < count; inspected++)
+        {
+            video = GetCurrentVideo();
+            if (video != null && !IsHiddenOnCurrentDevice(video))
+            {
+                return true;
+            }
+
+            ResetCurrentVideoProgress();
+            if (!TryAdvanceVideoIndex())
+            {
+                video = null;
+                return false;
+            }
+        }
+
+        video = null;
+        SetSuspicionVisual(false);
+        return false;
+    }
+
+    private bool IsHiddenOnCurrentDevice(VideoLibraryData.VideoEntry video)
+    {
+        if (!skipVideosHiddenOnCurrentDevice || video == null || deviceUsageController == null)
+        {
+            return false;
+        }
+
+        if (deviceUsageController.IsWatchingPhone)
+        {
+            return IsPhoneVideoHidden(video);
+        }
+
+        return deviceUsageController.IsWatchingTelevision &&
+               televisionFeed != null && televisionFeed.IsVideoHiddenForKid(video);
     }
 
     private void ApplyCurrentEffect(VideoLibraryData.VideoEntry video)
@@ -235,33 +441,88 @@ public sealed class KidFeedCycleController : MonoBehaviour
         activityController.ApplyViewedVideoEffect(video.contentEffect);
     }
 
+    private void RegisterUnresolvedHarmfulVideo(VideoLibraryData.VideoEntry video)
+    {
+        if (currentEffectApplied || video == null || activityController == null)
+        {
+            return;
+        }
+
+        currentEffectApplied = true;
+        unresolvedHarmfulVideos++;
+        if (unresolvedHarmfulVideos < requiredHarmfulVideosBeforeNegative)
+        {
+            return;
+        }
+
+        unresolvedHarmfulVideos = 0;
+        requiredHarmfulVideosBeforeNegative = ResolveHarmfulVideoThreshold();
+        activityController.ApplyUnresolvedHarmfulContentPanic();
+    }
+
     private void AdvanceToNextVideo()
     {
-        int count = videoLibrary != null ? videoLibrary.Videos.Count : 0;
+        int count = GetCurrentFeedCount();
         if (count == 0)
         {
             return;
         }
 
+        if (!TryAdvanceVideoIndex())
+        {
+            ResetCurrentVideoProgress();
+            return;
+        }
+
+        ResetCurrentVideoProgress();
+    }
+
+    private void CompleteCurrentVideo(VideoLibraryData.VideoEntry video)
+    {
+        if (deviceUsageController != null && deviceUsageController.IsWatchingTelevision)
+        {
+            completedTelevisionVideo = video;
+            ResetCurrentVideoProgress();
+            return;
+        }
+
+        AdvanceToNextVideo();
+    }
+
+    private bool TryAdvanceVideoIndex()
+    {
+        int count = GetCurrentFeedCount();
+        if (count == 0)
+        {
+            return false;
+        }
+
         if (currentVideoIndex + 1 < count)
         {
             currentVideoIndex++;
-        }
-        else if (loopLibrary)
-        {
-            currentVideoIndex = 0;
-        }
-        else
-        {
-            startOnPlay = false;
+            return true;
         }
 
+        if (loopLibrary)
+        {
+            currentVideoIndex = 0;
+            return true;
+        }
+
+        startOnPlay = false;
+        return false;
+    }
+
+    private void ResetCurrentVideoProgress()
+    {
         currentVideoStarted = false;
         suspicionCompleted = false;
         currentEffectApplied = false;
         watchedSeconds = 0f;
         suspicionSeconds = 0f;
         requiredSuspicionSeconds = 0f;
+        harmfulInterventionElapsedSeconds = 0f;
+        trackedVideo = null;
         SetSuspicionVisual(false);
     }
 
@@ -280,6 +541,196 @@ public sealed class KidFeedCycleController : MonoBehaviour
         float minimum = Mathf.Max(0.1f, minimumSuspicionSeconds);
         float maximum = Mathf.Max(minimum, maximumSuspicionSeconds);
         return UnityEngine.Random.Range(minimum, maximum);
+    }
+
+    private int ResolveHarmfulVideoThreshold()
+    {
+        int minimum = Mathf.Max(1, harmfulVideosBeforeNegativeRange.x);
+        int maximum = Mathf.Max(minimum, harmfulVideosBeforeNegativeRange.y);
+        return UnityEngine.Random.Range(minimum, maximum + 1);
+    }
+
+    private static bool IsHarmful(VideoLibraryData.VideoEntry video)
+    {
+        return video != null && video.contentEffect != VideoContentEffect.Normal;
+    }
+
+    public void EnsurePhoneFeedInitialized()
+    {
+        if (phoneFeedInitialized || videoLibrary == null || deviceUsageController == null ||
+            !deviceUsageController.CanUsePhone)
+        {
+            return;
+        }
+
+        SelectIndependentPhoneFeed(null, randomizeInitialPhoneFeed);
+        phoneFeedInitialized = true;
+        ScheduleNextPhoneRefresh();
+    }
+
+    public bool IsPhoneVideoHidden(VideoLibraryData.VideoEntry video)
+    {
+        return video != null && !string.IsNullOrWhiteSpace(video.id) &&
+               hiddenPhoneVideoIds.Contains(video.id);
+    }
+
+    public void HidePhoneVideo(VideoLibraryData.VideoEntry video)
+    {
+        if (video == null || string.IsNullOrWhiteSpace(video.id) ||
+            !hiddenPhoneVideoIds.Add(video.id))
+        {
+            return;
+        }
+
+        phoneFeedRevision++;
+    }
+
+    [ContextMenu("Refresh This Kid Phone Feed")]
+    public void RefreshPhoneFeedNow()
+    {
+        EnsurePhoneFeedInitialized();
+        if (!phoneFeedInitialized)
+        {
+            return;
+        }
+
+        List<VideoLibraryData.VideoEntry> previous = new(phoneVisibleVideos);
+        SelectIndependentPhoneFeed(previous, true);
+        ScheduleNextPhoneRefresh();
+    }
+
+    private void UpdateIndependentPhoneFeed()
+    {
+        EnsurePhoneFeedInitialized();
+        if (!phoneFeedInitialized || !autoRefreshPhoneFeed || IsThisKidPhoneOpen())
+        {
+            return;
+        }
+
+        phoneRefreshElapsedSeconds += Time.unscaledDeltaTime;
+        if (phoneRefreshElapsedSeconds >= secondsBeforePhoneRefresh)
+        {
+            RefreshPhoneFeedNow();
+        }
+    }
+
+    private bool IsThisKidPhoneOpen()
+    {
+        return kidFocusController != null && kidFocusController.IsPhoneScreenVisible &&
+               string.Equals(kidFocusController.SelectedKidId, kidId,
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ScheduleNextPhoneRefresh()
+    {
+        float minimum = Mathf.Max(0.1f, minimumPhoneRefreshSeconds);
+        float maximum = Mathf.Max(minimum, maximumPhoneRefreshSeconds);
+        phoneRefreshElapsedSeconds = 0f;
+        secondsBeforePhoneRefresh = UnityEngine.Random.Range(minimum, maximum);
+    }
+
+    private void SelectIndependentPhoneFeed(
+        IList<VideoLibraryData.VideoEntry> previousVideos, bool shuffle)
+    {
+        phoneVisibleVideos.Clear();
+        if (videoLibrary == null)
+        {
+            return;
+        }
+
+        HashSet<VideoLibraryData.VideoEntry> previous = previousVideos != null
+            ? new HashSet<VideoLibraryData.VideoEntry>(previousVideos)
+            : new HashSet<VideoLibraryData.VideoEntry>();
+        List<VideoLibraryData.VideoEntry> freshNormal = new();
+        List<VideoLibraryData.VideoEntry> freshHarmful = new();
+        List<VideoLibraryData.VideoEntry> fallbackNormal = new();
+        List<VideoLibraryData.VideoEntry> fallbackHarmful = new();
+
+        foreach (VideoLibraryData.VideoEntry video in videoLibrary.Videos)
+        {
+            if (video == null || string.IsNullOrWhiteSpace(video.id) || IsPhoneVideoHidden(video))
+            {
+                continue;
+            }
+
+            bool harmful = IsHarmful(video);
+            bool wasPreviouslyVisible = previous.Contains(video);
+            List<VideoLibraryData.VideoEntry> destination = harmful
+                ? wasPreviouslyVisible ? fallbackHarmful : freshHarmful
+                : wasPreviouslyVisible ? fallbackNormal : freshNormal;
+            destination.Add(video);
+        }
+
+        if (shuffle)
+        {
+            ShufflePhoneVideos(freshNormal);
+            ShufflePhoneVideos(freshHarmful);
+            ShufflePhoneVideos(fallbackNormal);
+            ShufflePhoneVideos(fallbackHarmful);
+        }
+
+        freshNormal.AddRange(fallbackNormal);
+        freshHarmful.AddRange(fallbackHarmful);
+        int targetCount = Mathf.Min(phoneVisibleVideoCount,
+            freshNormal.Count + freshHarmful.Count);
+        if (!balancePhoneHarmfulContent)
+        {
+            freshNormal.AddRange(freshHarmful);
+            if (shuffle)
+            {
+                ShufflePhoneVideos(freshNormal);
+            }
+
+            AddPhoneVideos(freshNormal, targetCount);
+            phoneFeedRevision++;
+            return;
+        }
+
+        int ratioSize = Mathf.Max(2, phoneNormalVideosPerHarmfulVideo + 1);
+        int desiredHarmful = Mathf.RoundToInt(targetCount / (float)ratioSize);
+        desiredHarmful = Mathf.Clamp(desiredHarmful, 1,
+            Mathf.Min(maximumPhoneHarmfulVideos, targetCount));
+        AddPhoneVideos(freshNormal, targetCount - desiredHarmful);
+        int countBeforeHarmful = phoneVisibleVideos.Count;
+        AddPhoneVideos(freshHarmful, desiredHarmful);
+        int harmfulAdded = phoneVisibleVideos.Count - countBeforeHarmful;
+        if (phoneVisibleVideos.Count < targetCount)
+        {
+            AddPhoneVideos(freshNormal, targetCount - phoneVisibleVideos.Count);
+            int harmfulCapacity = Mathf.Max(0, maximumPhoneHarmfulVideos - harmfulAdded);
+            AddPhoneVideos(freshHarmful, Mathf.Min(
+                targetCount - phoneVisibleVideos.Count, harmfulCapacity));
+        }
+
+        if (shuffle)
+        {
+            ShufflePhoneVideos(phoneVisibleVideos);
+        }
+
+        phoneFeedRevision++;
+    }
+
+    private void AddPhoneVideos(List<VideoLibraryData.VideoEntry> source, int maximumToAdd)
+    {
+        int count = Mathf.Min(maximumToAdd, source.Count);
+        for (int index = 0; index < count; index++)
+        {
+            phoneVisibleVideos.Add(source[index]);
+        }
+
+        if (count > 0)
+        {
+            source.RemoveRange(0, count);
+        }
+    }
+
+    private static void ShufflePhoneVideos<T>(IList<T> videos)
+    {
+        for (int index = videos.Count - 1; index > 0; index--)
+        {
+            int swapIndex = UnityEngine.Random.Range(0, index + 1);
+            (videos[index], videos[swapIndex]) = (videos[swapIndex], videos[index]);
+        }
     }
 
     private void SetSuspicionVisual(bool shouldShow)
@@ -321,6 +772,13 @@ public sealed class KidFeedCycleController : MonoBehaviour
         {
             Debug.LogError("Kid Sequential Video Viewer requires its library, Kid activity and focus controller assigned before Play.", this);
         }
+
+        if (skipVideosHiddenOnCurrentDevice && deviceUsageController != null &&
+            ((deviceUsageController.CanUsePhone && phonePresenter == null) ||
+             (deviceUsageController.CanUseTelevision && televisionFeed == null)))
+        {
+            Debug.LogError("Kid Sequential Video Viewer requires its prebuilt Phone presenter and/or TV feed reference for every supported device.", this);
+        }
     }
 
     private void OnValidate()
@@ -330,5 +788,15 @@ public sealed class KidFeedCycleController : MonoBehaviour
         minimumSuspicionSeconds = Mathf.Max(0.1f, minimumSuspicionSeconds);
         maximumSuspicionSeconds = Mathf.Max(minimumSuspicionSeconds, maximumSuspicionSeconds);
         horrorConsumptionSecondsBeforeEffect = Mathf.Max(0.1f, horrorConsumptionSecondsBeforeEffect);
+        harmfulInterventionSeconds = Mathf.Max(1f, harmfulInterventionSeconds);
+        harmfulVideosBeforeNegativeRange.x = Mathf.Max(1, harmfulVideosBeforeNegativeRange.x);
+        harmfulVideosBeforeNegativeRange.y = Mathf.Max(
+            harmfulVideosBeforeNegativeRange.x, harmfulVideosBeforeNegativeRange.y);
+        phoneVisibleVideoCount = Mathf.Max(1, phoneVisibleVideoCount);
+        minimumPhoneRefreshSeconds = Mathf.Max(0.1f, minimumPhoneRefreshSeconds);
+        maximumPhoneRefreshSeconds = Mathf.Max(
+            minimumPhoneRefreshSeconds, maximumPhoneRefreshSeconds);
+        phoneNormalVideosPerHarmfulVideo = Mathf.Max(1, phoneNormalVideosPerHarmfulVideo);
+        maximumPhoneHarmfulVideos = Mathf.Clamp(maximumPhoneHarmfulVideos, 1, 3);
     }
 }
