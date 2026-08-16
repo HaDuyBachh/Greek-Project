@@ -477,6 +477,18 @@ theo Kid dang hover/focus, nen badge khong chong len nhau. `TV_Forcus` luon an.
 Chi tiet logic xem video va cac field Inspector nam trong
 [KidSequentialVideoAndStatus.md](KidSequentialVideoAndStatus.md).
 
+## Kid help cards
+
+`Kid_Forcus` co san 8 help card o vung day man hinh, ben phai Character Note, nhung
+scene chi active 5 card co hanh dong (`1`, `3`, `5`, `6`, `7`) voi kich thuoc lon.
+Nhan `T` moi bat/tat cac header; hover card nao thi card do truot len hien day du
+noi dung. Bam card se hien mot preview dung san giua man hinh, phong to roi mo dan,
+dieu khien dung Kid dang focus di toi `walk_place` hoac `hug_place`. Khi hanh dong
+hoan tat, Kid chuyen sang `Happy`, xoa suspicion, brainrot exposure va bo dem video
+xau `0/2`. Toan bo anh, UI, Button, preview va reference deu nam trong scene truoc
+Play. Chi tiet bo cuc, action va field Inspector nam trong
+[KidHelpCards.md](KidHelpCards.md).
+
 ## Checklist kiem thu
 
 - Hierarchy chi con `Kid_Forcus/PhoneScreen` cho phone UI.

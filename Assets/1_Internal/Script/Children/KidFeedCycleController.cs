@@ -129,6 +129,16 @@ public sealed class KidFeedCycleController : MonoBehaviour
         ? suspicionSeconds + watchedSeconds
         : 0f;
 
+    public void ClearHarmfulProgressAfterGuidedHelp()
+    {
+        unresolvedHarmfulVideos = 0;
+        normalVideosTowardHarmfulReset = 0;
+        requiredHarmfulVideosBeforeNegative = ResolveHarmfulVideoThreshold();
+        completedTelevisionVideo = null;
+        ResetCurrentVideoProgress();
+        SetSuspicionVisual(false);
+    }
+
     private void Awake()
     {
         EnsurePhoneFeedInitialized();

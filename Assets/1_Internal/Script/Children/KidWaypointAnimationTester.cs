@@ -29,6 +29,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private KidDeviceUsageController deviceUsageController;
+    [SerializeField, Tooltip("This Kid's prebuilt feed-cycle controller. Cleared after a successful guided-help action.")]
+    private KidFeedCycleController feedCycleController;
     [SerializeField] private bool startOnPlay = true;
 
     [Header("Television Facing")]
@@ -121,6 +123,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private static readonly List<KidWaypointAnimationTester> ActiveMovers = new List<KidWaypointAnimationTester>();
 
     private Coroutine testRoutine;
+    private Coroutine guidedHelpRoutine;
     private LabeledWaypoint previousActivityWaypoint;
     private LabeledWaypoint currentChairSeat;
     private bool phonePauseRequested;
@@ -148,6 +151,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
                                               HasLabel(previousActivityWaypoint, SitGroundLabel)));
     public LabeledWaypoint CurrentChairSeat => currentChairSeat;
     public string CurrentAnimationState => currentAnimationState;
+    public bool IsGuidedHelpActionActive => guidedHelpRoutine != null;
 
     private void Awake()
     {
@@ -192,7 +196,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
     [ContextMenu("Start Random Animation Test")]
     public void StartTesting()
     {
-        if (!isActiveAndEnabled || testRoutine != null)
+        if (!isActiveAndEnabled || testRoutine != null || guidedHelpRoutine != null)
         {
             return;
         }
@@ -218,7 +222,59 @@ public class KidWaypointAnimationTester : MonoBehaviour
             testRoutine = null;
         }
 
+        if (guidedHelpRoutine != null)
+        {
+            StopCoroutine(guidedHelpRoutine);
+            guidedHelpRoutine = null;
+        }
+
         isTravelling = false;
+    }
+
+    public bool TryStartGuidedHelpAction(
+        string destinationLabel,
+        string[] actionAnimations,
+        float actionDurationSeconds)
+    {
+        ResolveReferences();
+        CacheWaypoints();
+
+        if (!isActiveAndEnabled || animator == null || agent == null || waypointGroup == null ||
+            feedCycleController == null ||
+            string.IsNullOrWhiteSpace(destinationLabel) || actionAnimations == null ||
+            actionAnimations.Length == 0)
+        {
+            Debug.LogWarning($"{name}: Guided help action is missing its prebuilt feed, waypoint, or animation assignment.", this);
+            return false;
+        }
+
+        string actionAnimation = PickValidAnimation(actionAnimations, actionAnimations[0]);
+        LabeledWaypoint destination = FindNearestAvailableWaypointByLabel(destinationLabel);
+        if (destination == null || string.IsNullOrWhiteSpace(actionAnimation))
+        {
+            Debug.LogWarning($"{name}: No available '{destinationLabel}' waypoint or valid guided-help animation was found.", this);
+            return false;
+        }
+
+        if (testRoutine != null)
+        {
+            StopCoroutine(testRoutine);
+            testRoutine = null;
+        }
+
+        if (guidedHelpRoutine != null)
+        {
+            StopCoroutine(guidedHelpRoutine);
+            guidedHelpRoutine = null;
+        }
+
+        ClearPendingReservations();
+        reservedDestination = destination;
+        guidedHelpRoutine = StartCoroutine(GuidedHelpRoutine(
+            destination,
+            actionAnimation,
+            Mathf.Max(1f, actionDurationSeconds)));
+        return true;
     }
 
     public void SetPausedForPhone(bool shouldPause)
@@ -456,6 +512,85 @@ public class KidWaypointAnimationTester : MonoBehaviour
         }
 
         testRoutine = null;
+    }
+
+    private IEnumerator GuidedHelpRoutine(
+        LabeledWaypoint destination,
+        string actionAnimation,
+        float actionDurationSeconds)
+    {
+        PrepareToTravel();
+
+        string locomotion = PickValidAnimation(locomotionAnimations, "Walking");
+        agent.speed = string.Equals(locomotion, "RunForward", StringComparison.Ordinal)
+            ? runSpeed
+            : walkSpeed;
+        PlayAnimation(locomotion);
+
+        if (!TrySetDestination(destination.Position))
+        {
+            Debug.LogWarning($"{name}: Cannot find NavMesh near guided-help waypoint {destination.name} ({destination.Label}).", destination);
+            FinishGuidedHelpAction(false);
+            yield break;
+        }
+
+        isTravelling = true;
+        yield return WaitForArrival(destination);
+        isTravelling = false;
+
+        if (!agent.enabled || !agent.isOnNavMesh || agent.pathPending ||
+            agent.remainingDistance > GetArrivalDistance(destination) + 0.1f)
+        {
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+            }
+
+            Debug.LogWarning($"{name}: Timed out while travelling to guided-help waypoint {destination.name} ({destination.Label}).", destination);
+            FinishGuidedHelpAction(false);
+            yield break;
+        }
+
+        agent.isStopped = true;
+        destination.Arrive(gameObject);
+        previousActivityWaypoint = destination;
+        currentChairSeat = null;
+        LockToWaypoint(destination);
+        ClearPendingReservations();
+        PlayAnimation(actionAnimation);
+
+        float remaining = actionDurationSeconds;
+        while (remaining > 0f && enabled)
+        {
+            remaining -= Time.deltaTime;
+            yield return null;
+        }
+
+        FinishGuidedHelpAction(true);
+    }
+
+    private void FinishGuidedHelpAction(bool wasCompleted)
+    {
+        isTravelling = false;
+        ClearPendingReservations();
+        guidedHelpRoutine = null;
+
+        if (wasCompleted)
+        {
+            feedCycleController?.ClearHarmfulProgressAfterGuidedHelp();
+            brainrotExposure = 0;
+            consecutiveNormalViews = 0;
+            videoSuspicionActive = false;
+            currentEmotion = EmotionState.Happy;
+            emotionChangedWhilePaused = false;
+        }
+
+        PlayCurrentEmotionAnimation();
+
+        if (startOnPlay && isActiveAndEnabled)
+        {
+            StartTesting();
+        }
     }
 
     private IEnumerator WaitWhileActivityPaused()
@@ -721,6 +856,40 @@ public class KidWaypointAnimationTester : MonoBehaviour
         }
 
         return nearest;
+    }
+
+    private LabeledWaypoint FindNearestAvailableWaypointByLabel(string label)
+    {
+        for (int pass = 0; pass < 2; pass++)
+        {
+            bool allowCurrentPosition = pass == 1;
+            LabeledWaypoint nearest = null;
+            float nearestDistance = float.PositiveInfinity;
+
+            foreach (LabeledWaypoint candidate in waypointGroup.Waypoints)
+            {
+                if (candidate == null || !HasLabel(candidate, label) ||
+                    !IsPositionAvailable(candidate) ||
+                    (!allowCurrentPosition && candidate == previousActivityWaypoint))
+                {
+                    continue;
+                }
+
+                float distance = (candidate.Position - transform.position).sqrMagnitude;
+                if (distance < nearestDistance)
+                {
+                    nearest = candidate;
+                    nearestDistance = distance;
+                }
+            }
+
+            if (nearest != null)
+            {
+                return nearest;
+            }
+        }
+
+        return null;
     }
 
     private bool IsPositionAvailable(LabeledWaypoint candidate)

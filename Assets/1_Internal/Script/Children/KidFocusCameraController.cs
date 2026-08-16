@@ -76,6 +76,8 @@ public class KidFocusCameraController : MonoBehaviour
     public string HoveredKidId => hoveredKid != null ? hoveredKid.kidId : string.Empty;
     public bool IsFocusing => selectedKid != null;
     public bool IsPhoneScreenVisible => isPhoneScreenVisible;
+    public KidWaypointAnimationTester SelectedKidActivityController =>
+        selectedKid != null ? selectedKid.activityController : null;
     private Camera OverviewCamera => mainRoomController != null ? mainRoomController.ControlledCamera : null;
 
     public void RegisterViewedVideo(VideoContentEffect effect)
