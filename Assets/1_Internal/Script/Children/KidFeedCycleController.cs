@@ -53,9 +53,14 @@ public sealed class KidFeedCycleController : MonoBehaviour
     [SerializeField] private bool useVideoMetadataDuration = true;
     [SerializeField, Min(0.1f)] private float minimumWatchSeconds = 2f;
     [SerializeField, Min(0.1f)] private float fallbackWatchSeconds = 6f;
+    [SerializeField, Min(0.1f),
+     Tooltip("A Normal TV broadcast counts as watched after this many seconds, even when its metadata duration is longer.")]
+    private float maximumTelevisionNormalWatchSeconds = 9f;
 
-    [Header("Pre-watch Suspicion")]
-    [SerializeField] private bool showSuspicionBeforeEveryVideo = true;
+    [Header("Harmful Video Suspicion")]
+    [SerializeField, FormerlySerializedAs("showSuspicionBeforeEveryVideo"),
+     Tooltip("Show Suspicious only while the tracked video is Brainrot or Horror. Normal videos can never enable this visual state.")]
+    private bool showSuspicionBeforeHarmfulVideo = true;
     [SerializeField, Min(0.1f)] private float minimumSuspicionSeconds = 2f;
     [SerializeField, Min(0.1f)] private float maximumSuspicionSeconds = 4f;
 
@@ -66,12 +71,15 @@ public sealed class KidFeedCycleController : MonoBehaviour
     [Header("Harmful Content Intervention")]
     [SerializeField, Tooltip("Give the player time to mark a Brainrot/Horror video as Don't recommend before it counts against the Kid.")]
     private bool useHarmfulInterventionWindow = true;
-    [SerializeField, Tooltip("If a harmful video survives its Suspicious preview, force Panic immediately instead of using the longer fallback timer.")]
-    private bool panicAfterUnresolvedSuspicion = true;
-    [SerializeField, Min(1f), Tooltip("Seconds from the first suspicious preview until an unhidden harmful video counts as consumed.")]
-    private float harmfulInterventionSeconds = 10f;
-    [SerializeField, Tooltip("Inclusive unresolved-video threshold. Keep this at 1-1 for immediate Panic after one missed Suspicious preview.")]
-    private Vector2Int harmfulVideosBeforeNegativeRange = new Vector2Int(1, 1);
+    [SerializeField, FormerlySerializedAs("panicAfterUnresolvedSuspicion"),
+     Tooltip("Keep the same harmful video active and looping throughout its Suspicious intervention window.")]
+    private bool loopHarmfulVideoDuringSuspicion = true;
+    [SerializeField, Min(1f)] private float minimumHarmfulSuspicionSeconds = 8f;
+    [SerializeField, Min(1f)] private float maximumHarmfulSuspicionSeconds = 9f;
+    [SerializeField, Tooltip("Inclusive unresolved-video threshold. Scene uses 2-2: the second missed harmful video causes Panic.")]
+    private Vector2Int harmfulVideosBeforeNegativeRange = new Vector2Int(2, 2);
+    [SerializeField, Min(1), Tooltip("Total fully watched Normal videos required to clear harmful progress back to 0/2.")]
+    private int normalVideosToClearHarmfulCounter = 8;
 
     private int currentVideoIndex;
     private float watchedSeconds;
@@ -81,9 +89,9 @@ public sealed class KidFeedCycleController : MonoBehaviour
     private bool currentVideoStarted;
     private bool suspicionCompleted;
     private bool currentEffectApplied;
-    private float harmfulInterventionElapsedSeconds;
     private int unresolvedHarmfulVideos;
     private int requiredHarmfulVideosBeforeNegative;
+    private int normalVideosTowardHarmfulReset;
     private VideoLibraryData.VideoEntry trackedVideo;
     private VideoLibraryData.VideoEntry completedTelevisionVideo;
     private readonly List<VideoLibraryData.VideoEntry> phoneVisibleVideos = new();
@@ -97,6 +105,9 @@ public sealed class KidFeedCycleController : MonoBehaviour
     public VideoLibraryData.VideoEntry CurrentVideo => GetCurrentVideo();
     public bool IsWatching => currentVideoStarted && CanWatchNow();
     public string KidId => kidId;
+    public int UnresolvedHarmfulVideos => unresolvedHarmfulVideos;
+    public int RequiredHarmfulVideosBeforeNegative => requiredHarmfulVideosBeforeNegative;
+    public int NormalVideosTowardHarmfulReset => normalVideosTowardHarmfulReset;
     public IReadOnlyList<VideoLibraryData.VideoEntry> PhoneVisibleVideos => phoneVisibleVideos;
     public int PhoneFeedRevision => phoneFeedRevision;
     public VideoLibraryData.VideoEntry CurrentPhoneVideo
@@ -108,14 +119,13 @@ public sealed class KidFeedCycleController : MonoBehaviour
                 return null;
             }
 
-            return currentVideoStarted && trackedVideo != null &&
-                   phoneVisibleVideos.Contains(trackedVideo)
+            return currentVideoStarted && trackedVideo != null && !IsPhoneVideoHidden(trackedVideo)
                 ? trackedVideo
                 : GetCurrentVideo();
         }
     }
     public float CurrentPhonePlaybackSeconds => currentVideoStarted && trackedVideo != null &&
-                                                phoneVisibleVideos.Contains(trackedVideo)
+                                                !IsPhoneVideoHidden(trackedVideo)
         ? suspicionSeconds + watchedSeconds
         : 0f;
 
@@ -141,7 +151,8 @@ public sealed class KidFeedCycleController : MonoBehaviour
         }
 
         bool canWatchNow = CanWatchNow();
-        SetSuspicionVisual(currentVideoStarted && !suspicionCompleted && CanShowSuspicionNow());
+        SetSuspicionVisual(currentVideoStarted && !suspicionCompleted &&
+                           IsHarmful(trackedVideo) && CanShowSuspicionNow());
         if (!canWatchNow)
         {
             return;
@@ -172,6 +183,7 @@ public sealed class KidFeedCycleController : MonoBehaviour
             ResetCurrentVideoProgress();
         }
 
+        bool isHarmfulVideo = IsHarmful(video);
         if (!currentVideoStarted)
         {
             currentVideoStarted = true;
@@ -179,33 +191,15 @@ public sealed class KidFeedCycleController : MonoBehaviour
             requiredWatchSeconds = ResolveWatchSeconds(video);
             watchedSeconds = 0f;
             suspicionSeconds = 0f;
-            requiredSuspicionSeconds = ResolveSuspicionSeconds();
-            suspicionCompleted = !showSuspicionBeforeEveryVideo;
+            bool requiresHarmfulSuspicion = isHarmfulVideo &&
+                                             (showSuspicionBeforeHarmfulVideo ||
+                                              useHarmfulInterventionWindow);
+            requiredSuspicionSeconds = requiresHarmfulSuspicion
+                ? ResolveSuspicionSeconds(video)
+                : 0f;
+            suspicionCompleted = !requiresHarmfulSuspicion;
             currentEffectApplied = false;
-            harmfulInterventionElapsedSeconds = 0f;
             SetSuspicionVisual(!suspicionCompleted);
-        }
-
-        bool isHarmfulVideo = IsHarmful(video);
-        if (isHarmfulVideo && useHarmfulInterventionWindow)
-        {
-            if (panicAfterUnresolvedSuspicion && suspicionCompleted)
-            {
-                RegisterUnresolvedHarmfulVideo(video);
-                CompleteCurrentVideo(video);
-                return;
-            }
-
-            if (!panicAfterUnresolvedSuspicion)
-            {
-                harmfulInterventionElapsedSeconds += Time.deltaTime;
-                if (harmfulInterventionElapsedSeconds >= harmfulInterventionSeconds)
-                {
-                    RegisterUnresolvedHarmfulVideo(video);
-                    CompleteCurrentVideo(video);
-                    return;
-                }
-            }
         }
 
         if (!suspicionCompleted)
@@ -218,6 +212,11 @@ public sealed class KidFeedCycleController : MonoBehaviour
 
             suspicionCompleted = true;
             SetSuspicionVisual(false);
+            if (isHarmfulVideo && useHarmfulInterventionWindow)
+            {
+                RegisterUnresolvedHarmfulVideo(video);
+                CompleteCurrentVideo(video);
+            }
             return;
         }
 
@@ -239,6 +238,7 @@ public sealed class KidFeedCycleController : MonoBehaviour
             return;
         }
 
+        RegisterCompletedNormalVideo(video);
         ApplyCurrentEffect(video);
         CompleteCurrentVideo(video);
     }
@@ -255,9 +255,9 @@ public sealed class KidFeedCycleController : MonoBehaviour
         suspicionSeconds = 0f;
         requiredWatchSeconds = 0f;
         requiredSuspicionSeconds = 0f;
-        harmfulInterventionElapsedSeconds = 0f;
         unresolvedHarmfulVideos = 0;
         requiredHarmfulVideosBeforeNegative = ResolveHarmfulVideoThreshold();
+        normalVideosTowardHarmfulReset = 0;
         trackedVideo = null;
         completedTelevisionVideo = null;
         SetSuspicionVisual(false);
@@ -338,6 +338,12 @@ public sealed class KidFeedCycleController : MonoBehaviour
 
     private VideoLibraryData.VideoEntry GetCurrentVideo()
     {
+        if (currentVideoStarted && trackedVideo != null && deviceUsageController != null &&
+            deviceUsageController.IsWatchingPhone && !IsPhoneVideoHidden(trackedVideo))
+        {
+            return trackedVideo;
+        }
+
         if (deviceUsageController != null && deviceUsageController.IsWatchingTelevision &&
             televisionFeed != null)
         {
@@ -449,15 +455,34 @@ public sealed class KidFeedCycleController : MonoBehaviour
         }
 
         currentEffectApplied = true;
-        unresolvedHarmfulVideos++;
-        if (unresolvedHarmfulVideos < requiredHarmfulVideosBeforeNegative)
+        int previousHarmfulVideos = unresolvedHarmfulVideos;
+        unresolvedHarmfulVideos = Mathf.Min(
+            unresolvedHarmfulVideos + 1, requiredHarmfulVideosBeforeNegative);
+        if (previousHarmfulVideos >= requiredHarmfulVideosBeforeNegative ||
+            unresolvedHarmfulVideos < requiredHarmfulVideosBeforeNegative)
+        {
+            return;
+        }
+
+        activityController.ApplyUnresolvedHarmfulContentPanic();
+    }
+
+    private void RegisterCompletedNormalVideo(VideoLibraryData.VideoEntry video)
+    {
+        if (video == null || IsHarmful(video) || unresolvedHarmfulVideos <= 0)
+        {
+            return;
+        }
+
+        normalVideosTowardHarmfulReset++;
+        if (normalVideosTowardHarmfulReset < normalVideosToClearHarmfulCounter)
         {
             return;
         }
 
         unresolvedHarmfulVideos = 0;
+        normalVideosTowardHarmfulReset = 0;
         requiredHarmfulVideosBeforeNegative = ResolveHarmfulVideoThreshold();
-        activityController.ApplyUnresolvedHarmfulContentPanic();
     }
 
     private void AdvanceToNextVideo()
@@ -521,23 +546,40 @@ public sealed class KidFeedCycleController : MonoBehaviour
         watchedSeconds = 0f;
         suspicionSeconds = 0f;
         requiredSuspicionSeconds = 0f;
-        harmfulInterventionElapsedSeconds = 0f;
         trackedVideo = null;
         SetSuspicionVisual(false);
     }
 
     private float ResolveWatchSeconds(VideoLibraryData.VideoEntry video)
     {
+        float resolvedSeconds;
         if (useVideoMetadataDuration && video != null && TryParseDuration(video.duration, out float seconds))
         {
-            return Mathf.Max(minimumWatchSeconds, seconds);
+            resolvedSeconds = Mathf.Max(minimumWatchSeconds, seconds);
+        }
+        else
+        {
+            resolvedSeconds = Mathf.Max(minimumWatchSeconds, fallbackWatchSeconds);
         }
 
-        return Mathf.Max(minimumWatchSeconds, fallbackWatchSeconds);
+        bool watchingNormalTelevision = video != null && !IsHarmful(video) &&
+                                        deviceUsageController != null &&
+                                        deviceUsageController.IsWatchingTelevision;
+        return watchingNormalTelevision
+            ? Mathf.Min(resolvedSeconds, Mathf.Max(0.1f, maximumTelevisionNormalWatchSeconds))
+            : resolvedSeconds;
     }
 
-    private float ResolveSuspicionSeconds()
+    private float ResolveSuspicionSeconds(VideoLibraryData.VideoEntry video)
     {
+        if (loopHarmfulVideoDuringSuspicion && useHarmfulInterventionWindow &&
+            IsHarmful(video))
+        {
+            float harmfulMinimum = Mathf.Max(1f, minimumHarmfulSuspicionSeconds);
+            float harmfulMaximum = Mathf.Max(harmfulMinimum, maximumHarmfulSuspicionSeconds);
+            return UnityEngine.Random.Range(harmfulMinimum, harmfulMaximum);
+        }
+
         float minimum = Mathf.Max(0.1f, minimumSuspicionSeconds);
         float maximum = Mathf.Max(minimum, maximumSuspicionSeconds);
         return UnityEngine.Random.Range(minimum, maximum);
@@ -737,7 +779,10 @@ public sealed class KidFeedCycleController : MonoBehaviour
     {
         if (activityController != null)
         {
-            activityController.SetVideoSuspicion(shouldShow);
+            bool isTrackedHarmfulVideo = currentVideoStarted && trackedVideo != null &&
+                                         IsHarmful(trackedVideo) &&
+                                         !IsHiddenOnCurrentDevice(trackedVideo);
+            activityController.SetVideoSuspicion(shouldShow && isTrackedHarmfulVideo);
         }
     }
 
@@ -788,10 +833,14 @@ public sealed class KidFeedCycleController : MonoBehaviour
         minimumSuspicionSeconds = Mathf.Max(0.1f, minimumSuspicionSeconds);
         maximumSuspicionSeconds = Mathf.Max(minimumSuspicionSeconds, maximumSuspicionSeconds);
         horrorConsumptionSecondsBeforeEffect = Mathf.Max(0.1f, horrorConsumptionSecondsBeforeEffect);
-        harmfulInterventionSeconds = Mathf.Max(1f, harmfulInterventionSeconds);
-        harmfulVideosBeforeNegativeRange.x = Mathf.Max(1, harmfulVideosBeforeNegativeRange.x);
+        minimumHarmfulSuspicionSeconds = Mathf.Max(1f, minimumHarmfulSuspicionSeconds);
+        maximumHarmfulSuspicionSeconds = Mathf.Max(
+            minimumHarmfulSuspicionSeconds, maximumHarmfulSuspicionSeconds);
+        maximumTelevisionNormalWatchSeconds = Mathf.Max(0.1f, maximumTelevisionNormalWatchSeconds);
+        harmfulVideosBeforeNegativeRange.x = Mathf.Max(2, harmfulVideosBeforeNegativeRange.x);
         harmfulVideosBeforeNegativeRange.y = Mathf.Max(
             harmfulVideosBeforeNegativeRange.x, harmfulVideosBeforeNegativeRange.y);
+        normalVideosToClearHarmfulCounter = Mathf.Max(1, normalVideosToClearHarmfulCounter);
         phoneVisibleVideoCount = Mathf.Max(1, phoneVisibleVideoCount);
         minimumPhoneRefreshSeconds = Mathf.Max(0.1f, minimumPhoneRefreshSeconds);
         maximumPhoneRefreshSeconds = Mathf.Max(

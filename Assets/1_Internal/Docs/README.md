@@ -196,24 +196,32 @@ va bo qua truoc khi ap dung Brainrot/Horror effect.
   `Fallback Watch Seconds = 6`.
 - Khi `Kid_Forcus` dang theo doi dung Kid do, bo dem video cua Kid do tam dung va tiep tuc sau khi
   quay lai `Main_room`.
-- Moi clip bat dau bang trang thai hien thi tam `Suspicious` trong `2-4` giay.
-- Brainrot/Horror chua bi `No recommend` chi co pha `Suspicious` ngau nhien
-  `2-4` giay de can thiep. Neu bi an trong pha nay, toan bo tien do clip bi huy.
-- Scene bat `Panic After Unresolved Suspicion` va dat nguong `1-1`: harmful
-  video con ton tai khi Suspicious ket thuc se ep Kid sang `Panic` ngay, bat ke
-  video do la Brainrot hay Horror, va hien badge `NEGATIVE`.
+- Normal khong bao gio bat `Suspicious`. Chi Brainrot/Horror moi giu nguyen
+  tracked video, lap frame va bat VFX SUS trong `8-9` giay; status card van chi
+  hien `POSITIVE` hoac `NEGATIVE`.
+- Neu harmful video bi `No recommend` truoc khi het cua so tren, tien do bi huy
+  va counter khong tang. Neu khong bi go, video thu nhat tang `0/2 -> 1/2`;
+  harmful video thu hai tang `2/2` va moi ep Kid sang `Panic/NEGATIVE`.
+- Tong cong tam video Normal duoc xem het (khong can lien tiep) se xoa counter
+  harmful ve `0/2`. Rieng TV, mot Normal broadcast duoc tinh da xem sau `9`
+  giay, truoc chu ky doi chuong trinh `10` giay.
 - `Normal` van ap dung sau khi Kid xem het thoi luong metadata.
 - `Loop Library` cho phep quay lai video dau tien sau video cuoi. Tat checkbox
   nay neu chi muon duyet thu vien mot lan.
 
 ### Tac dong cam xuc
 
-- `Brainrot`: neu khong bi go trong pha `Suspicious`, Kid chuyen thang `Panic`.
+- `Brainrot`: neu khong bi go trong pha `Suspicious`, tang counter harmful mot
+  lan; chi video xau thu hai moi chuyen Kid sang `Panic`.
 - `Normal`: giam mot exposure. Hai video Normal lien tiep phuc hoi mot bac
   `Panic -> Anxious -> Stable`; hai video Normal tiep theo dua `Stable -> Happy`.
-- `Horror`: neu khong bi go trong pha `Suspicious`, Kid chuyen thang `Panic`.
-- `Suspicious` chi la VFX tam thoi, khong ghi de state that va khong tang/giam
-  `Brainrot Exposure`.
+- `Horror`: dung chung counter `2` video voi Brainrot; video xau thu hai moi
+  chuyen Kid sang `Panic`.
+- `Suspicious` chi la VFX tam thoi, khong ghi de state that. The trang thai tren
+  dau chi hien `POSITIVE` hoac `NEGATIVE`, khong hien text/counter SUS. Trong khi
+  harmful video chua bi `No recommend`, frame cua chinh video do tiep tuc lap va
+  VFX SUS tu khoi dong lai ngay sau moi vong hien thi, khong chen khoang an
+  `5-7` giay cua cam xuc binh thuong.
 - Khi dong phone, Kid doi sang animation phu hop voi tu the dang dung/ngoi.
   Neu Kid con di chuyen, no den dich truoc roi moi ap dung animation cam xuc.
 - Animator hien chua co state happy rieng; `Happy` tam dung nhom animation
@@ -264,9 +272,10 @@ tuong tac voi TV UI:
 - `Outline` cua TV tat o trang thai binh thuong va chi bat khi con tro chuot nam
   trong vung chon TV tren camera `Main_room`; outline tat ngay khi roi hover hoac
   khi da chuyen vao `TV_Forcus`.
-- Click Kid dang ngoi tai mot trong cac `Television Seats` va dang chay animation
-  nam trong `Television Animations` cung se vao `TV_Forcus`. Scene hien gan ba
-  ghe sofa va animation `SitChairIdle`; cac dieu kien nay deu sua duoc tren Inspector.
+- Click vao bat ky Kid nao, ke ca Kid dang xem TV, luon vao `Kid_Forcus` cua Kid
+  do. Neu device activity cua Kid la TV, phai bam Enter sau do moi chuyen sang
+  `TV_Forcus`. `TV_Forcus Controller` khong con luu vung click cua Kid.
+- Click truc tiep vao TV van vao `TV_Forcus` ngay, doc lap voi luong chon Kid.
 - `Esc` hoac chuot phai quay lai `Main_room`.
 - `GraphicRaycaster` cua TV duoc luu san trong scene o trang thai tat, chi duoc
   bat khi `TV_Forcus` dang active. Vi vay TV UI khong nhan click tu camera tong.
@@ -331,9 +340,12 @@ Ten hien thi tren ba card la `Noah`, `Ethan`, `Liam`. ID noi bo van la
 Moi Kid dung `KidDeviceUsageController` de chon mot trong ba loai `Phone Only`,
 `Television Only` hoac `Phone And Television`. Scene hien cau hinh Kid1 =
 `Phone Only`, Kid2 = `Phone And Television`, Kid3 = `Television Only`. Enter mo
-phone neu Kid dang xem phone, mo `TV_Forcus` neu Kid dang xem TV;
-Kid ket hop o animation khac se khong chuyen camera. Child object tag `phone_handle` chi active trong animation
-xem phone. Chi tiet xem [KidDeviceUsage.md](KidDeviceUsage.md).
+phone neu activity ngoi hien tai thuoc Phone, mo `TV_Forcus` neu activity thuoc
+TV. Moi Kid co kha nang xem TV deu nhan `sit_ground` la xem TV khi checkbox
+`Watch Television When Sitting On Ground` bat; Kid2 van xem Phone tai cac luot
+ghe duoc gan Phone. Animation phan ung cam xuc khong lam mat device activity.
+Child object `phone_handle` chi active khi activity hien tai thuoc Phone. Chi
+tiet xem [KidDeviceUsage.md](KidDeviceUsage.md).
 
 ## Nguyen tac cho chuc nang moi
 
@@ -352,6 +364,10 @@ xem phone. Chi tiet xem [KidDeviceUsage.md](KidDeviceUsage.md).
 co UI video rieng va khong dung `PhoneVideoFeedUI`. `TV_Forcus Controller` co
 mot bridge serialize den `KidFocusCameraController` de dam bao moi thoi diem chi
 mot che do camera nhan input.
+
+World-space Canvas `TV LED 30¨/Screen` dung `Sorting Order = -1`, thap hon
+Particle Renderer cua emotion VFX (`0`). Vi vay VFX cua Kid khong bi man TV ve
+de len; Unity Layer 31 cua `ScreenMask` van duoc giu nguyen cho raycast/culling.
 
 - `TelevisionVideoFeedUI` duoc gan san tren `ScreenMask`; library, 6 card slot,
   player, progress, play/pause va nut dong deu la reference serialize trong scene.
@@ -422,6 +438,13 @@ ton tai. Cac document hong da duoc loai bo; hai state hop le `Idle` va
 `Run Forward In Place`, animation clip cua chung, va hai transition hai chieu
 van duoc giu nguyen. Viec nay ngan `UnityEditor.Graphs.Edge.WakeUp()` dung edge
 hong sau moi lan assembly/domain reload va khong them bat ky runtime script nao.
+
+Neu stack trace van xuat hien ngay luc domain reload, nguyen nhan la cache cua
+cua so Animator trong `UserSettings/Layouts`, khong phai gameplay script hay
+controller asset. Cache controller, breadcrumb va view-transform cua Animator da
+duoc xoa khoi `CurrentMaximizeLayout.dwlt` va `default-6000.dwlt`; animation,
+scene va runtime logic khong bi thay doi. Can nap lai layout hoac khoi dong lai
+Unity mot lan de Editor bo graph object cu dang nam trong bo nho.
 
 ## Kid emotion VFX
 

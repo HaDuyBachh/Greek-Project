@@ -14,9 +14,12 @@ All references are assigned before Play:
 - `Kid Focus Controller`: `Kid_Forcus Controller`.
 - `First Video Index`: Kid1 `0`, Kid2 `1`, Kid3 `2`; `Loop Library = true`.
 - `Use Video Metadata Duration = true`, fallback `6` seconds.
-- Every video begins with a `Suspicious` preview for a random `2-4` seconds.
-- Brainrot/Horror must be hidden before that Suspicious preview ends. Scene uses
-  `Panic After Unresolved Suspicion = true` and threshold `1-1`.
+- Normal video never enables `Suspicious`. Only a tracked `Brainrot` or `Horror`
+  video keeps looping under `Suspicious` for `8-9` seconds, giving the player a
+  longer intervention window.
+- Brainrot/Horror must be hidden before that window ends. Scene threshold is
+  fixed at `2-2`: the first missed harmful video records `1/2`; the second
+  records `2/2` and changes the Kid to `Panic`.
 
 Each controller advances only while its Kid is at a seated activity location.
 It pauses only while `Kid_Forcus` is following that Kid. No video, sprite, component or UI
@@ -53,10 +56,14 @@ once and is not counted repeatedly while its frames loop. The library asset is
 only the prebuilt fallback when the current device feed reference is unavailable.
 
 - `Horror` and `Brainrot`: if the device-specific `Don't recommend` list still
-  does not contain the video when its `2-4` second Suspicious preview ends, the
-  Kid changes directly to `Panic` after that single video.
-- `Panic After Unresolved Suspicion`, the Suspicious duration and the fallback
-  longer intervention timer remain Inspector-adjustable.
+  does not contain the video when its `8-9` second Suspicious window ends, the
+  harmful counter advances once. Hiding it at any point before completion
+  cancels progress and does not increment the counter.
+- The second unresolved harmful video changes the Kid to `Panic`. The threshold,
+  harmful Suspicious min/max and looping behavior remain Inspector-adjustable.
+- Eight fully watched Normal videos (cumulative, not necessarily consecutive)
+  clear harmful progress back to `0/2`. A Normal TV broadcast counts after `9`
+  seconds, before the TV's `10` second rotation can replace it.
 - `Normal`: removes one exposure and builds deterministic recovery. Two Normal
   videos recover one negative level, and two further Normal videos change
   `Stable` to `Happy`.
@@ -107,6 +114,12 @@ A second prebuilt card below the emotion badge displays `WATCHING PHONE` or
 `WATCHING TV` from `KidDeviceUsageController`, so the player can see which
 device Enter will open. It follows the same hover/focus and TV-hidden rules.
 
-`Suspicious` is a temporary visual override only. It uses the prebuilt
-Indifference, Curious and Expectant VFX on both camera anchors without changing
-the Kid's stored positive/negative state or its status badge.
+`Suspicious` is a VFX-only temporary override. It uses the prebuilt Indifference,
+Curious and Expectant VFX on both camera anchors without changing the stored
+positive/negative state. The status badge always reads only `POSITIVE` or
+`NEGATIVE` from the Kid's stored emotion. Suspicious VFX restarts immediately
+after each configured display duration, so it has no hidden interval while the
+harmful video remains unresolved. Phone and TV frame players loop that same
+tracked video rather than advancing when its frame sequence reaches the end.
+`SetSuspicionVisual` also validates the tracked video's `contentEffect`, so a
+Normal entry cannot enable SUS even if another call path requests the visual.

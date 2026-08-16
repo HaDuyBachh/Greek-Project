@@ -181,13 +181,19 @@ public class KidFocusCameraController : MonoBehaviour
         }
 
         Vector2 pointerPosition = Pointer.current.position.ReadValue();
+        // Kid selection has priority. A Kid watching TV must first enter Kid_Forcus;
+        // Enter is the only path from that Kid focus to TV_Forcus.
+        if (TryFocusAtScreenPosition(pointerPosition))
+        {
+            return;
+        }
+
         if (!IsFocusing && televisionFocusController != null &&
             televisionFocusController.TryFocusFromOverviewClick(pointerPosition))
         {
             return;
         }
 
-        TryFocusAtScreenPosition(pointerPosition);
         UpdateFocusOrbitInput();
     }
 
@@ -333,15 +339,18 @@ public class KidFocusCameraController : MonoBehaviour
         ShowOverview();
     }
 
-    private void TryFocusAtScreenPosition(Vector2 screenPosition)
+    private bool TryFocusAtScreenPosition(Vector2 screenPosition)
     {
         Camera selectionCamera = IsFocusing ? focusCamera : OverviewCamera;
         KidFocusTarget nearestKid = FindKidAtScreenPosition(selectionCamera, screenPosition);
 
-        if (nearestKid != null)
+        if (nearestKid == null)
         {
-            FocusKid(nearestKid);
+            return false;
         }
+
+        FocusKid(nearestKid);
+        return true;
     }
 
     private void UpdateHoveredKid()

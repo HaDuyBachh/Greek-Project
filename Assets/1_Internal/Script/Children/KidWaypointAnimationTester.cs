@@ -436,6 +436,10 @@ public class KidWaypointAnimationTester : MonoBehaviour
             {
                 LockToWaypoint(target);
                 deviceUsageController?.BeginGroundActivity();
+                if (deviceUsageController != null && deviceUsageController.IsWatchingTelevision)
+                {
+                    FaceTelevisionImmediately();
+                }
                 PlayAnimation(PickGroundAnimation());
             }
             else
@@ -686,9 +690,13 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
         reservedDestination = candidate;
         reservedChairDestination = chair;
-        reservedChairWillWatchTelevision = chair != null && deviceUsageController != null &&
-                                           deviceUsageController.NextChairActivity ==
-                                           KidDeviceUsageController.DeviceActivity.Television;
+        bool televisionGroundActivity = HasLabel(candidate, SitGroundLabel) &&
+                                         deviceUsageController != null &&
+                                         deviceUsageController.WatchesTelevisionWhenSittingOnGround;
+        bool televisionChairActivity = chair != null && deviceUsageController != null &&
+                                        deviceUsageController.NextChairActivity ==
+                                        KidDeviceUsageController.DeviceActivity.Television;
+        reservedChairWillWatchTelevision = televisionGroundActivity || televisionChairActivity;
         return true;
     }
 
@@ -764,7 +772,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!isTravelling && currentChairSeat != null && deviceUsageController != null &&
+        if (!isTravelling && deviceUsageController != null &&
             deviceUsageController.IsWatchingTelevision)
         {
             RotateTowardTelevision(televisionTurnSpeed * Time.deltaTime);

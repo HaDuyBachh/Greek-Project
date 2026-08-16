@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using GreekProject.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -8,22 +6,6 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class TelevisionFocusCameraController : MonoBehaviour
 {
-    [Serializable]
-    public sealed class KidTelevisionTarget
-    {
-        public Transform kidRoot;
-        [Tooltip("Screen-space click point for the Kid. Keep separate from the camera focus point.")]
-        public Transform selectionPoint;
-        public Transform focusPoint;
-        public KidWaypointAnimationTester activityController;
-        public KidDeviceUsageController deviceUsageController;
-        public LabeledWaypoint[] televisionSeats;
-        public string[] televisionAnimations = { "SitChairIdle" };
-
-        public bool IsValid => kidRoot != null && selectionPoint != null && focusPoint != null &&
-                               activityController != null && deviceUsageController != null;
-    }
-
     [Header("Cameras")]
     [SerializeField] private MainRoomCameraController mainRoomController;
     [SerializeField] private KidFocusCameraController kidFocusController;
@@ -34,10 +16,6 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     [SerializeField] private Renderer televisionRenderer;
     [SerializeField] private Outline televisionOutline;
     [SerializeField, Min(1f)] private float televisionSelectionRadius = 190f;
-
-    [Header("Kids Watching Television")]
-    [SerializeField] private List<KidTelevisionTarget> kids = new();
-    [SerializeField, Min(1f)] private float kidSelectionRadius = 140f;
 
     [Header("Prebuilt TV UI")]
     [SerializeField] private Canvas televisionCanvas;
@@ -87,17 +65,6 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
         bool foundTarget = TryGetScreenDistance(overviewCamera, GetTelevisionSelectionPoint(), screenPosition,
             televisionSelectionRadius, ref nearestDistance);
 
-        foreach (KidTelevisionTarget kid in kids)
-        {
-            if (!IsKidWatchingTelevision(kid))
-            {
-                continue;
-            }
-
-            foundTarget |= TryGetScreenDistance(overviewCamera, kid.selectionPoint.position, screenPosition,
-                kidSelectionRadius, ref nearestDistance);
-        }
-
         if (!foundTarget)
         {
             return false;
@@ -136,26 +103,6 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
         }
 
         kidFocusController?.RestoreOverviewAfterExternalFocus();
-    }
-
-    private bool IsKidWatchingTelevision(KidTelevisionTarget kid)
-    {
-        if (kid == null || !kid.IsValid || !kid.kidRoot.gameObject.activeInHierarchy ||
-            kid.activityController.IsTravelling || !kid.deviceUsageController.IsWatchingTelevision)
-        {
-            return false;
-        }
-
-        LabeledWaypoint currentSeat = kid.activityController.CurrentChairSeat;
-        if (currentSeat == null || kid.televisionSeats == null ||
-            Array.IndexOf(kid.televisionSeats, currentSeat) < 0)
-        {
-            return false;
-        }
-
-        // A reaction animation does not stop the Kid from watching the current TV broadcast.
-        // Device activity plus the occupied TV seat is the authoritative state here.
-        return true;
     }
 
     private Vector3 GetTelevisionSelectionPoint()

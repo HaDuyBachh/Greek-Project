@@ -47,6 +47,8 @@ public sealed class KidEmotionVfxController : MonoBehaviour
     [SerializeField] private bool showImmediatelyWhenNegative = true;
     [SerializeField] private bool showImmediatelyWhenPositive;
     [SerializeField] private bool showImmediatelyWhenSuspicious = true;
+    [SerializeField, Tooltip("Restart Suspicious VFX immediately with no hidden gap while the harmful video remains unresolved.")]
+    private bool keepSuspiciousVfxContinuous = true;
     [SerializeField, Min(0.1f)] private float displayDurationSeconds = 3f;
     [Tooltip("Repeat interval for Stable and other non-negative, non-Happy states.")]
     [SerializeField, Min(0.1f)] private float positiveMinimumRepeatIntervalSeconds = 5f;
@@ -122,7 +124,14 @@ public sealed class KidEmotionVfxController : MonoBehaviour
 
         if (activeVfx != null && Time.time >= hideAtTime)
         {
+            bool restartSuspiciousImmediately = keepSuspiciousVfxContinuous &&
+                                                displayedEmotion ==
+                                                KidWaypointAnimationTester.EmotionState.Suspicious;
             HideActiveVfx();
+            if (restartSuspiciousImmediately)
+            {
+                ShowCurrentEmotion();
+            }
         }
 
         if (activeVfx == null && Time.time >= showAgainAtTime)

@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -33,6 +32,11 @@ public sealed class KidDeviceUsageController : MonoBehaviour
     [SerializeField] private string chairPhoneAnimation = "SitChairUsingPhone";
     [SerializeField] private string chairTelevisionAnimation = "SitChairIdle";
 
+    [Header("Sitting Device Rules")]
+    [SerializeField,
+     Tooltip("When this Kid can watch TV, a sit_ground activity is treated as Television unless a Phone-only type is selected.")]
+    private bool watchTelevisionWhenSittingOnGround = true;
+
     [Header("Phone Handle")]
     [SerializeField] private bool showPhoneHandleOnlyDuringPhoneAnimation = true;
 
@@ -43,13 +47,17 @@ public sealed class KidDeviceUsageController : MonoBehaviour
     public DeviceActivity CurrentActivity => currentActivity;
     public bool CanUsePhone => usageType != DeviceUsageType.TelevisionOnly;
     public bool CanUseTelevision => usageType != DeviceUsageType.PhoneOnly;
-    public bool IsWatchingPhone => CanUsePhone && !activityController.IsTravelling &&
-                                   IsAnimation(activityController.CurrentAnimationState,
-                                       groundPhoneAnimation, chairPhoneAnimation);
+    public bool WatchesTelevisionWhenSittingOnGround => CanUseTelevision &&
+                                                        watchTelevisionWhenSittingOnGround;
+    public bool IsWatchingPhone => CanUsePhone && activityController != null &&
+                                   currentActivity == DeviceActivity.Phone &&
+                                   !activityController.IsTravelling &&
+                                   activityController.IsAtVideoViewingLocation;
     public bool IsWatchingTelevision => CanUseTelevision &&
+                                        activityController != null &&
                                         currentActivity == DeviceActivity.Television &&
                                         !activityController.IsTravelling &&
-                                        activityController.CurrentChairSeat != null;
+                                        activityController.IsAtVideoViewingLocation;
     public DeviceActivity NextChairActivity => ResolveNextChairActivity();
 
     private void Awake()
@@ -76,6 +84,12 @@ public sealed class KidDeviceUsageController : MonoBehaviour
 
     public void BeginGroundActivity()
     {
+        if (WatchesTelevisionWhenSittingOnGround)
+        {
+            currentActivity = DeviceActivity.Television;
+            return;
+        }
+
         currentActivity = CanUsePhone ? DeviceActivity.Phone : DeviceActivity.None;
     }
 
@@ -159,25 +173,6 @@ public sealed class KidDeviceUsageController : MonoBehaviour
         {
             phoneHandle.SetActive(visible);
         }
-    }
-
-    private static bool IsAnimation(string currentAnimation, params string[] candidates)
-    {
-        if (string.IsNullOrWhiteSpace(currentAnimation) || candidates == null)
-        {
-            return false;
-        }
-
-        foreach (string candidate in candidates)
-        {
-            if (!string.IsNullOrWhiteSpace(candidate) &&
-                string.Equals(currentAnimation, candidate, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void ValidatePrebuiltReferences()
