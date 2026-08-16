@@ -58,7 +58,9 @@ namespace GreekProject.UI
         [SerializeField, Min(1), Tooltip("Approximate number of Normal videos for every Brainrot/Horror video.")]
         private int normalVideosPerHarmfulVideo = 3;
         [SerializeField, Range(1, 3), Tooltip("Hard limit for Brainrot/Horror cards in one six-card feed.")]
-        private int maximumHarmfulVideosPerFeed = 2;
+        private int maximumHarmfulVideosPerFeed = 3;
+        [SerializeField, Range(0f, 1f), Tooltip("Chance for a six-card feed to receive one additional Brainrot/Horror card, without exceeding the hard limit.")]
+        private float extraHarmfulVideoChance = 0.4f;
 
         [Header("Not Recommended Overlay")]
         [SerializeField] private string videoRemovedText = "Video removed";
@@ -1145,6 +1147,12 @@ namespace GreekProject.UI
             int desiredHarmful = Mathf.RoundToInt(targetCount / (float)ratioSize);
             desiredHarmful = Mathf.Clamp(desiredHarmful, 1,
                 Mathf.Min(maximumHarmfulVideosPerFeed, targetCount));
+            if (desiredHarmful < Mathf.Min(maximumHarmfulVideosPerFeed, targetCount) &&
+                UnityEngine.Random.value < extraHarmfulVideoChance)
+            {
+                desiredHarmful++;
+            }
+
             int desiredNormal = targetCount - desiredHarmful;
             AddVideos(freshNormal, desiredNormal);
             int countBeforeHarmful = visibleVideos.Count;

@@ -64,14 +64,19 @@ only the prebuilt fallback when the current device feed reference is unavailable
 - Eight fully watched Normal videos (cumulative, not necessarily consecutive)
   clear harmful progress back to `0/2`. A Normal TV broadcast counts after `9`
   seconds, before the TV's `10` second rotation can replace it.
+- Starting an actionable Help Card immediately changes the selected Kid to `Happy`,
+  clears the harmful counter and protects that Kid from Brainrot/Horror for a random
+  Inspector-controlled `5-10` seconds. Protected time cannot accumulate hidden SUS
+  or watch progress.
 - `Normal`: removes one exposure and builds deterministic recovery. Two Normal
   videos recover one negative level, and two further Normal videos change
   `Stable` to `Happy`.
 
 ## Feed content ratio
 
-Each Kid Phone and TV independently select each six-card feed with an approximate
-`3 Normal : 1 Brainrot/Horror` target and a hard maximum of `2` harmful cards.
+Each Kid Phone and TV independently select each six-card feed with a base target
+of `2` Brainrot/Horror cards. `Extra Harmful Video Chance = 0.4` gives the feed a
+40% chance to add a third harmful card, with a hard maximum of `3`.
 The selector still prioritizes videos not present in the previous feed and
 never reintroduces that specific phone/device's hidden videos. Phone ratio and
 reset fields are serialized separately on Noah and Ethan's sequential viewer

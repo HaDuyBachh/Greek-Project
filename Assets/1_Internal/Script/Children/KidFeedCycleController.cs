@@ -31,7 +31,9 @@ public sealed class KidFeedCycleController : MonoBehaviour
     [SerializeField, Min(0.1f)] private float maximumPhoneRefreshSeconds = 5f;
     [SerializeField] private bool balancePhoneHarmfulContent = true;
     [SerializeField, Min(1)] private int phoneNormalVideosPerHarmfulVideo = 3;
-    [SerializeField, Range(1, 3)] private int maximumPhoneHarmfulVideos = 2;
+    [SerializeField, Range(1, 3)] private int maximumPhoneHarmfulVideos = 3;
+    [SerializeField, Range(0f, 1f), Tooltip("Chance for a six-card Phone feed to receive one additional harmful video, without exceeding the hard limit.")]
+    private float phoneExtraHarmfulVideoChance = 0.4f;
 
     [Header("Kid")]
     [SerializeField] private string kidId = "Kid1";
@@ -194,6 +196,12 @@ public sealed class KidFeedCycleController : MonoBehaviour
         }
 
         bool isHarmfulVideo = IsHarmful(video);
+        if (isHarmfulVideo && activityController.IsProtectedFromHarmfulContent)
+        {
+            ResetCurrentVideoProgress();
+            return;
+        }
+
         if (!currentVideoStarted)
         {
             currentVideoStarted = true;
@@ -453,6 +461,11 @@ public sealed class KidFeedCycleController : MonoBehaviour
             return;
         }
 
+        if (IsHarmful(video) && activityController.IsProtectedFromHarmfulContent)
+        {
+            return;
+        }
+
         currentEffectApplied = true;
         activityController.ApplyViewedVideoEffect(video.contentEffect);
     }
@@ -460,6 +473,11 @@ public sealed class KidFeedCycleController : MonoBehaviour
     private void RegisterUnresolvedHarmfulVideo(VideoLibraryData.VideoEntry video)
     {
         if (currentEffectApplied || video == null || activityController == null)
+        {
+            return;
+        }
+
+        if (activityController.IsProtectedFromHarmfulContent)
         {
             return;
         }
@@ -742,6 +760,12 @@ public sealed class KidFeedCycleController : MonoBehaviour
         int desiredHarmful = Mathf.RoundToInt(targetCount / (float)ratioSize);
         desiredHarmful = Mathf.Clamp(desiredHarmful, 1,
             Mathf.Min(maximumPhoneHarmfulVideos, targetCount));
+        if (desiredHarmful < Mathf.Min(maximumPhoneHarmfulVideos, targetCount) &&
+            UnityEngine.Random.value < phoneExtraHarmfulVideoChance)
+        {
+            desiredHarmful++;
+        }
+
         AddPhoneVideos(freshNormal, targetCount - desiredHarmful);
         int countBeforeHarmful = phoneVisibleVideos.Count;
         AddPhoneVideos(freshHarmful, desiredHarmful);
@@ -857,5 +881,6 @@ public sealed class KidFeedCycleController : MonoBehaviour
             minimumPhoneRefreshSeconds, maximumPhoneRefreshSeconds);
         phoneNormalVideosPerHarmfulVideo = Mathf.Max(1, phoneNormalVideosPerHarmfulVideo);
         maximumPhoneHarmfulVideos = Mathf.Clamp(maximumPhoneHarmfulVideos, 1, 3);
+        phoneExtraHarmfulVideoChance = Mathf.Clamp01(phoneExtraHarmfulVideoChance);
     }
 }

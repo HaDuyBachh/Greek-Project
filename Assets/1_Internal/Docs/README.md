@@ -137,11 +137,12 @@ mo PhoneScreen, presenter lay `SelectedKidId`, chuyen sang feed dung Kid va mo
 thang `CurrentPhoneVideo` tai tien do xem hien tai. Vi vay luc badge `SUSPICIOUS`
 hien, nguoi choi vao Phone se thay ngay chinh clip Kid dang xem de xu ly.
 
-Ca Phone va TV bat `Balance Harmful Content`: moi feed 6 card dung ty le muc
-tieu gan `3 Normal : 1 Brainrot/Horror` va gioi han cung toi da `2` card xau.
-Ba gia tri `Balance Harmful Content`, `Normal Videos Per Harmful Video` va
-`Maximum Harmful Videos Per Feed` duoc serialize rieng tren hai feed, nen co the
-chinh trong Inspector va khong chia se blacklist/data runtime.
+Ca Phone va TV bat `Balance Harmful Content`: moi feed 6 card co muc co so `2`
+Brainrot/Horror. Scene dat `Extra Harmful Video Chance = 0.4`, nen co 40% co hoi
+them card xau thu ba; gioi han cung van la `3`, khong the lap day ca feed.
+Bon gia tri `Balance Harmful Content`, `Normal Videos Per Harmful Video`,
+`Maximum Harmful Videos Per Feed` va `Extra Harmful Video Chance` duoc serialize
+rieng tren cac feed, nen co the chinh trong Inspector va khong chia se blacklist/data runtime.
 
 Panel va backdrop luon duoc dua len tren cung khi mo de khong bi `RectMask2D`
 cua `VideoScroll` cat. Neu scene cu chua co `VideoOptionsBackdrop`, runtime tao
@@ -484,8 +485,10 @@ scene chi active 5 card co hanh dong (`1`, `3`, `5`, `6`, `7`) voi kich thuoc lo
 Nhan `T` moi bat/tat cac header; hover card nao thi card do truot len hien day du
 noi dung. Bam card se hien mot preview dung san giua man hinh, phong to roi mo dan,
 dieu khien dung Kid dang focus di toi `walk_place` hoac `hug_place`. Khi hanh dong
-hoan tat, Kid chuyen sang `Happy`, xoa suspicion, brainrot exposure va bo dem video
-xau `0/2`. Toan bo anh, UI, Button, preview va reference deu nam trong scene truoc
+bat dau, Kid chuyen ngay sang `Happy`, xoa suspicion, brainrot exposure va bo dem
+video xau `0/2`; sau do Kid duoc bao ve khoi Brainrot/Horror ngau nhien `5-10` giay.
+Thoi gian bao ve khong duoc tich luy ngam SUS/counter. Toan bo anh, UI, Button,
+preview va reference deu nam trong scene truoc
 Play. Chi tiet bo cuc, action va field Inspector nam trong
 [KidHelpCards.md](KidHelpCards.md).
 

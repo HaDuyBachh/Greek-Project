@@ -66,6 +66,12 @@ public class KidWaypointAnimationTester : MonoBehaviour
     [SerializeField, Min(0)] private int brainrotExposure;
     [SerializeField, Min(0)] private int consecutiveNormalViews;
 
+    [Header("Guided Help Protection")]
+    [SerializeField, Min(0.1f), Tooltip("Minimum harmful-content immunity applied immediately when a help card starts.")]
+    private float minimumHelpProtectionSeconds = 5f;
+    [SerializeField, Min(0.1f), Tooltip("Maximum harmful-content immunity applied immediately when a help card starts.")]
+    private float maximumHelpProtectionSeconds = 10f;
+
     [Header("Movement Animations")]
     [SerializeField] private string[] locomotionAnimations = { "Walking", "RunForward" };
     [SerializeField] private float walkSpeed = 3.5f;
@@ -136,6 +142,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private LabeledWaypoint reservedDestination;
     private LabeledWaypoint reservedChairDestination;
     private bool reservedChairWillWatchTelevision;
+    private float harmfulContentProtectionUntilTime;
 
     public bool IsPausedForPhone => phonePauseRequested;
     public bool IsPausedForFocus => focusPauseRequested;
@@ -145,6 +152,9 @@ public class KidWaypointAnimationTester : MonoBehaviour
     public EmotionState VisualEmotion => videoSuspicionActive ? EmotionState.Suspicious : currentEmotion;
     public int BrainrotExposure => brainrotExposure;
     public bool IsNegativeEmotion => currentEmotion == EmotionState.Anxious || currentEmotion == EmotionState.Panic;
+    public bool IsProtectedFromHarmfulContent => Time.time < harmfulContentProtectionUntilTime;
+    public float HarmfulContentProtectionRemainingSeconds =>
+        Mathf.Max(0f, harmfulContentProtectionUntilTime - Time.time);
     public bool IsAtVideoViewingLocation => !isTravelling &&
                                             (currentChairSeat != null ||
                                              (previousActivityWaypoint != null &&
@@ -270,6 +280,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
         ClearPendingReservations();
         reservedDestination = destination;
+        ApplyGuidedHelpRecovery(true);
         guidedHelpRoutine = StartCoroutine(GuidedHelpRoutine(
             destination,
             actionAnimation,
@@ -300,6 +311,12 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
     public void ApplyViewedVideoEffect(VideoContentEffect effect)
     {
+        if (IsProtectedFromHarmfulContent &&
+            (effect == VideoContentEffect.Brainrot || effect == VideoContentEffect.Horror))
+        {
+            return;
+        }
+
         EmotionState previousEmotion = currentEmotion;
 
         switch (effect)
@@ -370,7 +387,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
     public void SetVideoSuspicion(bool shouldShow)
     {
-        videoSuspicionActive = shouldShow;
+        videoSuspicionActive = shouldShow && !IsProtectedFromHarmfulContent;
     }
 
     private void PlayCurrentEmotionAnimation()
@@ -577,12 +594,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
         if (wasCompleted)
         {
-            feedCycleController?.ClearHarmfulProgressAfterGuidedHelp();
-            brainrotExposure = 0;
-            consecutiveNormalViews = 0;
-            videoSuspicionActive = false;
-            currentEmotion = EmotionState.Happy;
-            emotionChangedWhilePaused = false;
+            ApplyGuidedHelpRecovery(false);
         }
 
         PlayCurrentEmotionAnimation();
@@ -591,6 +603,25 @@ public class KidWaypointAnimationTester : MonoBehaviour
         {
             StartTesting();
         }
+    }
+
+    private void ApplyGuidedHelpRecovery(bool beginProtectionWindow)
+    {
+        if (beginProtectionWindow)
+        {
+            float minimum = Mathf.Max(0.1f, minimumHelpProtectionSeconds);
+            float maximum = Mathf.Max(minimum, maximumHelpProtectionSeconds);
+            harmfulContentProtectionUntilTime = Time.time +
+                                                 UnityEngine.Random.Range(minimum, maximum);
+        }
+
+        feedCycleController?.ClearHarmfulProgressAfterGuidedHelp();
+        brainrotExposure = 0;
+        consecutiveNormalViews = 0;
+        videoSuspicionActive = false;
+        currentEmotion = EmotionState.Happy;
+        emotionChangedWhilePaused = false;
+        PlayCurrentEmotionAnimation();
     }
 
     private IEnumerator WaitWhileActivityPaused()
@@ -1080,6 +1111,9 @@ public class KidWaypointAnimationTester : MonoBehaviour
         brainrotViewsBeforeAnxiety = Mathf.Max(1, brainrotViewsBeforeAnxiety);
         normalViewsToRecoverOneLevel = Mathf.Max(1, normalViewsToRecoverOneLevel);
         normalViewsBeforeHappy = Mathf.Max(1, normalViewsBeforeHappy);
+        minimumHelpProtectionSeconds = Mathf.Max(0.1f, minimumHelpProtectionSeconds);
+        maximumHelpProtectionSeconds = Mathf.Max(
+            minimumHelpProtectionSeconds, maximumHelpProtectionSeconds);
         firstActivityWaypointIndex = Mathf.Max(0, firstActivityWaypointIndex);
         reservedPositionRadius = Mathf.Max(0.1f, reservedPositionRadius);
         unavailablePositionRetryDelay = Mathf.Max(0.1f, unavailablePositionRetryDelay);

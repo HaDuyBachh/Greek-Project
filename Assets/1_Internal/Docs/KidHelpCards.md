@@ -44,10 +44,16 @@ scene. After a successful click, this prebuilt preview appears in the center of 
 screen, scales from `Preview Start Scale` to `Preview End Scale`, then fades out over
 `Preview Duration Seconds`. No preview is cloned or loaded at runtime.
 
-When the guided action reaches its destination and completes its full duration, the
-Kid becomes `Happy`. Brainrot exposure, suspicion, `0/2` unresolved harmful progress,
-and progress toward the normal-video reset are cleared. A navigation failure or an
-interrupted action does not grant this recovery.
+As soon as an actionable card is accepted, the selected Kid becomes `Happy` and the
+recovery is also confirmed again after the action completes. Brainrot exposure,
+suspicion, `0/2` unresolved harmful progress, and progress toward the normal-video
+reset are cleared immediately, so the previous tracked video cannot reapply the old
+negative state while the Kid is travelling. The card also starts a random harmful-
+content protection window between `Minimum Help Protection Seconds = 5` and
+`Maximum Help Protection Seconds = 10`. During that window Brainrot/Horror cannot
+enable Suspicious, increment exposure/counters, or change the Kid's emotion. If a
+harmful video is still current when protection expires, its consumption starts again
+from zero rather than inheriting hidden progress from the protected interval.
 
 ## Pre-Play requirement
 
