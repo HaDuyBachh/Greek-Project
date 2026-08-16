@@ -14,7 +14,8 @@ public class KidWaypointAnimationTester : MonoBehaviour
         Stable,
         Happy,
         Anxious,
-        Panic
+        Panic,
+        Suspicious
     }
 
     private const string WalkPlaceLabel = "walk_place";
@@ -27,19 +28,24 @@ public class KidWaypointAnimationTester : MonoBehaviour
     [SerializeField] private WaypointGroup waypointGroup;
     [SerializeField] private Animator animator;
     [SerializeField] private NavMeshAgent agent;
+    [SerializeField] private KidDeviceUsageController deviceUsageController;
     [SerializeField] private bool startOnPlay = true;
 
     [Header("Timing")]
     [SerializeField, Min(0.1f)] private float minActionDuration = 3f;
     [SerializeField, Min(0.1f)] private float maxActionDuration = 7f;
+    [SerializeField, Tooltip("Visit activity waypoints in their Inspector order instead of choosing a random destination.")]
+    private bool visitWaypointsInOrder = true;
     [SerializeField, Min(1f)] private float travelTimeout = 20f;
     [SerializeField, Min(0f)] private float animationBlendTime = 0.2f;
 
     [Header("Video Emotion")]
     [SerializeField, Min(1)] private int brainrotViewsBeforeAnxiety = 3;
-    [SerializeField, Range(0f, 1f)] private float normalVideoHappyChance = 0.5f;
+    [SerializeField, Min(1)] private int normalViewsToRecoverOneLevel = 2;
+    [SerializeField, Min(1)] private int normalViewsBeforeHappy = 2;
     [SerializeField] private EmotionState currentEmotion = EmotionState.Stable;
     [SerializeField, Min(0)] private int brainrotExposure;
+    [SerializeField, Min(0)] private int consecutiveNormalViews;
 
     [Header("Movement Animations")]
     [SerializeField] private string[] locomotionAnimations = { "Walking", "RunForward" };
@@ -103,14 +109,22 @@ public class KidWaypointAnimationTester : MonoBehaviour
     private bool focusPauseRequested;
     private bool isTravelling;
     private bool emotionChangedWhilePaused;
+    private bool videoSuspicionActive;
     private string currentAnimationState = string.Empty;
+    private int nextActivityWaypointIndex;
 
     public bool IsPausedForPhone => phonePauseRequested;
     public bool IsPausedForFocus => focusPauseRequested;
     public bool IsActivityPaused => phonePauseRequested || focusPauseRequested;
     public bool IsTravelling => isTravelling;
     public EmotionState CurrentEmotion => currentEmotion;
+    public EmotionState VisualEmotion => videoSuspicionActive ? EmotionState.Suspicious : currentEmotion;
     public int BrainrotExposure => brainrotExposure;
+    public bool IsNegativeEmotion => currentEmotion == EmotionState.Anxious || currentEmotion == EmotionState.Panic;
+    public bool IsAtVideoViewingLocation => !isTravelling &&
+                                            (currentChairSeat != null ||
+                                             (previousActivityWaypoint != null &&
+                                              HasLabel(previousActivityWaypoint, SitGroundLabel)));
     public LabeledWaypoint CurrentChairSeat => currentChairSeat;
     public string CurrentAnimationState => currentAnimationState;
 
@@ -193,14 +207,23 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
     public void ApplyViewedVideoEffect(VideoContentEffect effect)
     {
+        EmotionState previousEmotion = currentEmotion;
+
         switch (effect)
         {
             case VideoContentEffect.Horror:
                 currentEmotion = EmotionState.Panic;
+                consecutiveNormalViews = 0;
                 break;
 
             case VideoContentEffect.Brainrot:
                 brainrotExposure++;
+                consecutiveNormalViews = 0;
+                if (currentEmotion == EmotionState.Happy)
+                {
+                    currentEmotion = EmotionState.Stable;
+                }
+
                 if (currentEmotion != EmotionState.Panic && brainrotExposure >= brainrotViewsBeforeAnxiety)
                 {
                     currentEmotion = EmotionState.Anxious;
@@ -209,13 +232,47 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
             default:
                 brainrotExposure = Mathf.Max(0, brainrotExposure - 1);
-                currentEmotion = UnityEngine.Random.value < normalVideoHappyChance
-                    ? EmotionState.Happy
-                    : EmotionState.Stable;
+                consecutiveNormalViews++;
+
+                if (currentEmotion == EmotionState.Panic &&
+                    consecutiveNormalViews >= normalViewsToRecoverOneLevel)
+                {
+                    currentEmotion = EmotionState.Anxious;
+                    consecutiveNormalViews = 0;
+                }
+                else if (currentEmotion == EmotionState.Anxious && brainrotExposure == 0 &&
+                         consecutiveNormalViews >= normalViewsToRecoverOneLevel)
+                {
+                    currentEmotion = EmotionState.Stable;
+                    consecutiveNormalViews = 0;
+                }
+                else if (currentEmotion == EmotionState.Stable &&
+                         consecutiveNormalViews >= normalViewsBeforeHappy)
+                {
+                    currentEmotion = EmotionState.Happy;
+                    consecutiveNormalViews = 0;
+                }
                 break;
         }
 
-        emotionChangedWhilePaused |= IsActivityPaused;
+        if (currentEmotion == previousEmotion)
+        {
+            return;
+        }
+
+        if (IsActivityPaused)
+        {
+            emotionChangedWhilePaused = true;
+        }
+        else if (!isTravelling)
+        {
+            PlayCurrentEmotionAnimation();
+        }
+    }
+
+    public void SetVideoSuspicion(bool shouldShow)
+    {
+        videoSuspicionActive = shouldShow;
     }
 
     private void PlayCurrentEmotionAnimation()
@@ -333,6 +390,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
             else if (HasLabel(target, SitGroundLabel))
             {
                 LockToWaypoint(target);
+                deviceUsageController?.BeginGroundActivity();
                 PlayAnimation(PickGroundAnimation());
             }
             else
@@ -373,6 +431,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
 
     private void PrepareToTravel()
     {
+        deviceUsageController?.EndDeviceActivity();
         Vector3 departurePosition = transform.position;
         Quaternion departureRotation = transform.rotation;
 
@@ -455,6 +514,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
         currentChairSeat = chair;
         LockToWaypoint(chair);
         chair.Arrive(gameObject);
+        deviceUsageController?.BeginChairActivity();
         PlayAnimation(PickChairAnimation());
     }
 
@@ -477,8 +537,14 @@ public class KidWaypointAnimationTester : MonoBehaviour
             return HasAnimation("GroundPain") ? "GroundPain" : PickValidAnimation(emotionalGroundAnimations, "GroundPain");
         }
 
-        return currentEmotion == EmotionState.Anxious
-            ? PickValidAnimation(emotionalGroundAnimations, "GroundPain")
+        if (currentEmotion == EmotionState.Anxious)
+        {
+            return PickValidAnimation(emotionalGroundAnimations, "GroundPain");
+        }
+
+        string deviceAnimation = deviceUsageController?.ResolveNeutralGroundAnimation();
+        return HasAnimation(deviceAnimation)
+            ? deviceAnimation
             : PickValidAnimation(neutralGroundAnimations, "SitGround");
     }
 
@@ -489,8 +555,14 @@ public class KidWaypointAnimationTester : MonoBehaviour
             return HasAnimation("SitChairFear") ? "SitChairFear" : PickValidAnimation(emotionalChairAnimations, "SitChairFear");
         }
 
-        return currentEmotion == EmotionState.Anxious
-            ? PickValidAnimation(emotionalChairAnimations, "SitChairFear")
+        if (currentEmotion == EmotionState.Anxious)
+        {
+            return PickValidAnimation(emotionalChairAnimations, "SitChairFear");
+        }
+
+        string deviceAnimation = deviceUsageController?.ResolveNeutralChairAnimation();
+        return HasAnimation(deviceAnimation)
+            ? deviceAnimation
             : PickValidAnimation(neutralChairAnimations, "SitChairIdle");
     }
 
@@ -516,6 +588,22 @@ public class KidWaypointAnimationTester : MonoBehaviour
         if (activityWaypoints.Count == 1)
         {
             return activityWaypoints[0];
+        }
+
+        if (visitWaypointsInOrder)
+        {
+            for (int offset = 0; offset < activityWaypoints.Count; offset++)
+            {
+                int index = (nextActivityWaypointIndex + offset) % activityWaypoints.Count;
+                LabeledWaypoint candidate = activityWaypoints[index];
+                if (candidate == null || candidate == previousActivityWaypoint)
+                {
+                    continue;
+                }
+
+                nextActivityWaypointIndex = (index + 1) % activityWaypoints.Count;
+                return candidate;
+            }
         }
 
         LabeledWaypoint selected;
@@ -623,5 +711,7 @@ public class KidWaypointAnimationTester : MonoBehaviour
         walkSpeed = Mathf.Max(0.1f, walkSpeed);
         runSpeed = Mathf.Max(walkSpeed, runSpeed);
         brainrotViewsBeforeAnxiety = Mathf.Max(1, brainrotViewsBeforeAnxiety);
+        normalViewsToRecoverOneLevel = Mathf.Max(1, normalViewsToRecoverOneLevel);
+        normalViewsBeforeHappy = Mathf.Max(1, normalViewsBeforeHappy);
     }
 }

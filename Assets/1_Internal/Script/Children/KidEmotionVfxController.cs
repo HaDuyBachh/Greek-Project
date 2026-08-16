@@ -44,10 +44,17 @@ public sealed class KidEmotionVfxController : MonoBehaviour
     [SerializeField] private EmotionVfxPool[] emotionPools;
 
     [Header("Display Timing")]
-    [SerializeField] private bool showImmediatelyOnCameraOrEmotionChange = true;
+    [SerializeField] private bool showImmediatelyWhenNegative = true;
+    [SerializeField] private bool showImmediatelyWhenPositive;
+    [SerializeField] private bool showImmediatelyWhenSuspicious = true;
     [SerializeField, Min(0.1f)] private float displayDurationSeconds = 3f;
-    [SerializeField, Min(0.1f)] private float minimumRepeatIntervalSeconds = 5f;
-    [SerializeField, Min(0.1f)] private float maximumRepeatIntervalSeconds = 8f;
+    [Tooltip("Repeat interval for Stable and other non-negative, non-Happy states.")]
+    [SerializeField, Min(0.1f)] private float positiveMinimumRepeatIntervalSeconds = 5f;
+    [SerializeField, Min(0.1f)] private float positiveMaximumRepeatIntervalSeconds = 7f;
+    [SerializeField, Min(0.1f)] private float happyMinimumRepeatIntervalSeconds = 5f;
+    [SerializeField, Min(0.1f)] private float happyMaximumRepeatIntervalSeconds = 7f;
+    [SerializeField, Min(0.1f)] private float negativeMinimumRepeatIntervalSeconds = 3f;
+    [SerializeField, Min(0.1f)] private float negativeMaximumRepeatIntervalSeconds = 5f;
     [SerializeField] private bool avoidImmediateVariantRepeat = true;
 
     private DisplayCamera activeCamera;
@@ -68,7 +75,7 @@ public sealed class KidEmotionVfxController : MonoBehaviour
         HideAllPrebuiltVfx();
         CaptureSceneAnchorPoses();
         displayedEmotion = activityController != null
-            ? activityController.CurrentEmotion
+            ? activityController.VisualEmotion
             : KidWaypointAnimationTester.EmotionState.Stable;
         ScheduleNextDisplay();
     }
@@ -77,7 +84,7 @@ public sealed class KidEmotionVfxController : MonoBehaviour
     {
         DisplayCamera nextCamera = ResolveDisplayCamera();
         KidWaypointAnimationTester.EmotionState nextEmotion = activityController != null
-            ? activityController.CurrentEmotion
+            ? activityController.VisualEmotion
             : KidWaypointAnimationTester.EmotionState.Stable;
 
         PreserveSceneAnchorPoses();
@@ -90,7 +97,14 @@ public sealed class KidEmotionVfxController : MonoBehaviour
             activeCamera = nextCamera;
             displayedEmotion = nextEmotion;
 
-            if (activeCamera != DisplayCamera.None && showImmediatelyOnCameraOrEmotionChange)
+            bool isSuspicious = displayedEmotion == KidWaypointAnimationTester.EmotionState.Suspicious;
+            bool isNegative = IsNegative(displayedEmotion);
+            bool showImmediately = isSuspicious
+                ? showImmediatelyWhenSuspicious
+                : isNegative
+                    ? showImmediatelyWhenNegative
+                    : showImmediatelyWhenPositive;
+            if (activeCamera != DisplayCamera.None && showImmediately)
             {
                 ShowCurrentEmotion();
             }
@@ -109,7 +123,6 @@ public sealed class KidEmotionVfxController : MonoBehaviour
         if (activeVfx != null && Time.time >= hideAtTime)
         {
             HideActiveVfx();
-            ScheduleNextDisplay();
         }
 
         if (activeVfx == null && Time.time >= showAgainAtTime)
@@ -136,7 +149,7 @@ public sealed class KidEmotionVfxController : MonoBehaviour
         HideActiveVfx();
         activeCamera = ResolveDisplayCamera();
         displayedEmotion = activityController != null
-            ? activityController.CurrentEmotion
+            ? activityController.VisualEmotion
             : KidWaypointAnimationTester.EmotionState.Stable;
         ShowCurrentEmotion();
     }
@@ -239,6 +252,7 @@ public sealed class KidEmotionVfxController : MonoBehaviour
         activeVfx.SetActive(false);
         activeVfx.SetActive(true);
         hideAtTime = Time.time + displayDurationSeconds;
+        ScheduleNextDisplay();
 
         if (activeCamera == DisplayCamera.MainRoom)
         {
@@ -333,9 +347,27 @@ public sealed class KidEmotionVfxController : MonoBehaviour
 
     private void ScheduleNextDisplay()
     {
-        float minimum = Mathf.Max(0.1f, minimumRepeatIntervalSeconds);
-        float maximum = Mathf.Max(minimum, maximumRepeatIntervalSeconds);
+        bool isNegative = IsNegative(displayedEmotion);
+        bool isHappy = displayedEmotion == KidWaypointAnimationTester.EmotionState.Happy;
+        float minimum = Mathf.Max(0.1f,
+            isNegative
+                ? negativeMinimumRepeatIntervalSeconds
+                : isHappy
+                    ? happyMinimumRepeatIntervalSeconds
+                    : positiveMinimumRepeatIntervalSeconds);
+        float maximum = Mathf.Max(minimum,
+            isNegative
+                ? negativeMaximumRepeatIntervalSeconds
+                : isHappy
+                    ? happyMaximumRepeatIntervalSeconds
+                    : positiveMaximumRepeatIntervalSeconds);
         showAgainAtTime = Time.time + UnityEngine.Random.Range(minimum, maximum);
+    }
+
+    private static bool IsNegative(KidWaypointAnimationTester.EmotionState emotion)
+    {
+        return emotion == KidWaypointAnimationTester.EmotionState.Anxious ||
+               emotion == KidWaypointAnimationTester.EmotionState.Panic;
     }
 
     private void HideActiveVfx()

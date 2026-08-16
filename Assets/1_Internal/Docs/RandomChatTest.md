@@ -44,7 +44,7 @@ Day la component test. Khi he thong cam xuc that bat dau phat chat, tat hoac xoa
 ## Chu ky hien tai trong scene chinh
 
 Scene `1_Main.unity` khong dung lai `KidRandomChatTester`. Component
-`Controller/Kid Feed Cycle Controller` chi yeu cau `PhoneVideoFeedUI` refresh
-ngau nhien mot phan trong 6 video dang hien moi `5` giay. `Chat_Kid1`, binding
-chat cua Kid1 va random UI emote da duoc xoa; emotion hien tai dung
-`KidEmotionVfxController` world-space.
+`Controller/Kid Sequential Video Viewer` duyet thu vien video theo thu tu va cap
+nhat emotion dua tren `contentEffect`; no khong refresh feed ngau nhien.
+`Chat_Kid1`, binding chat cua Kid1 va random UI emote da duoc xoa; emotion hien
+tai dung `KidEmotionVfxController` world-space va badge `Kid1 Emotion Status`.

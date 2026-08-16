@@ -2,16 +2,17 @@
 
 ## Muc dich
 
-`KidWaypointAnimationTester` duoc gan tren `Kid1` trong scene `1_Main` de cho nhan vat tu dong di ngau nhien va thu cac animation trong `Kid.controller`.
+`KidWaypointAnimationTester` duoc gan tren `Kid1` trong scene `1_Main` de cho nhan vat tu dong di qua cac waypoint va thu cac animation trong `Kid.controller`.
 
 Component nay chi phuc vu test animation. Khi gameplay chinh dieu khien tre em, co the tat component nay trong Inspector.
 
 ## Luong hoat dong
 
-1. Chon ngau nhien mot waypoint co label `walk_place`, `sit_ground` hoac `enter_sofa`.
+1. Khi `Visit Waypoints In Order` bat, chon waypoint ke tiep theo thu tu Inspector
+   trong cac label `walk_place`, `sit_ground` hoac `enter_sofa`.
 2. Di den waypoint bang `NavMeshAgent` va animation `Walking` hoac `RunForward`.
 3. Chay ngau nhien mot animation trung tinh phu hop voi loai waypoint trong khoang thoi gian da dat trong Inspector.
-4. Dung day va tiep tuc chon waypoint khac.
+4. Giu hoat dong `15` giay trong scene hien tai, sau do moi xem xet waypoint ke tiep.
 
 `sit_chair` khong duoc chon truc tiep. Khi nhan vat den `enter_sofa`, controller tim `sit_chair` gan diem vao do nhat, dat nhan vat dung vi tri va huong cua point ghe, sau do chay animation ngoi. Khi roi ghe, nhan vat duoc dua ve `enter_sofa` tuong ung roi moi tiep tuc di tren NavMesh.
 
@@ -38,7 +39,10 @@ Tat ca danh sach tren deu duoc serialize trong component tren `Kid1`, vi vay co 
 
 ## Thong so test
 
-- `Min/Max Action Duration`: thoi gian giu animation tai waypoint.
+- `Min/Max Action Duration`: thoi gian giu animation tai waypoint; scene dat ca
+  hai bang `15` de interval khong random.
+- `Visit Waypoints In Order`: bat de duyet waypoint tuan tu; tat de quay lai cach
+  chon dich ngau nhien.
 - `Travel Timeout`: thoi gian toi da cho mot luot di.
 - `Walk/Run Speed`: toc do NavMesh tuong ung voi animation di/chay.
 - Bo chon `KidWaypointAnimationTester` tren `Kid1` de dung che do test tu dong.

@@ -84,9 +84,10 @@ namespace GreekProject.UI
 
         [Header("TV Broadcast")]
         [SerializeField] private bool autoPlayWhenNotFocused = true;
-        [SerializeField, Min(1f)] private float minimumSecondsBeforeRotation = 10f;
+        [SerializeField, Min(1f)] private float minimumSecondsBeforeRotation = 15f;
         [SerializeField, Min(1f)] private float maximumSecondsBeforeRotation = 15f;
-        [SerializeField] private bool replacePlayedVideoAfterClose = true;
+        [SerializeField, Tooltip("Replace the complete six-card feed only after the timed broadcast interval.")]
+        private bool replaceEntireFeedAfterTimedRotation = true;
 
         [Header("TV Layout - Edit Mode")]
         [SerializeField, Range(0.04f, 0.18f)] private float sidebarWidth = 0.075f;
@@ -105,7 +106,7 @@ namespace GreekProject.UI
         private readonly List<Button> boundCardButtons = new();
         private readonly List<UnityAction> moreClickActions = new();
         private readonly List<Button> boundMoreButtons = new();
-        private readonly HashSet<VideoLibraryData.VideoEntry> hiddenVideos = new();
+        private readonly HashSet<string> hiddenVideoIds = new(StringComparer.OrdinalIgnoreCase);
         private VideoLibraryData.VideoEntry activeVideo;
         private VideoLibraryData.VideoEntry optionsVideo;
         private FrameSequence activeSequence;
@@ -229,7 +230,7 @@ namespace GreekProject.UI
         {
             visibleVideos.Clear();
             List<VideoLibraryData.VideoEntry> candidates = new(videoLibrary.Videos);
-            candidates.RemoveAll(video => video == null || hiddenVideos.Contains(video));
+            candidates.RemoveAll(video => video == null || IsHidden(video));
             if (randomizeInitialVideos)
             {
                 Shuffle(candidates);
@@ -257,7 +258,7 @@ namespace GreekProject.UI
                     continue;
                 }
 
-                bool isRemoved = hiddenVideos.Contains(video);
+                bool isRemoved = IsHidden(video);
                 slot.removedOverlay.gameObject.SetActive(isRemoved);
                 slot.removedOverlay.SetAsLastSibling();
                 if (isRemoved)
@@ -314,17 +315,8 @@ namespace GreekProject.UI
                 return;
             }
 
-            List<VideoLibraryData.VideoEntry> previousOrder = new(visibleVideos);
             HidePlayerWithoutReplacement();
-            for (int attempt = 0; attempt < 8; attempt++)
-            {
-                SelectInitialVideos();
-                if (!HasSameOrder(previousOrder, visibleVideos))
-                {
-                    break;
-                }
-            }
-
+            ReplaceEntireVisibleFeed();
             BindPrebuiltCards();
             EnsureBroadcastPlaying();
         }
@@ -336,7 +328,7 @@ namespace GreekProject.UI
             {
                 CardSlot slot = cardSlots[index];
                 VideoLibraryData.VideoEntry video = index < visibleVideos.Count ? visibleVideos[index] : null;
-                bool cardCanInteract = enabledState && video != null && !hiddenVideos.Contains(video);
+                bool cardCanInteract = enabledState && video != null && !IsHidden(video);
                 if (slot?.openButton != null)
                 {
                     slot.openButton.interactable = cardCanInteract;
@@ -372,25 +364,6 @@ namespace GreekProject.UI
             }
         }
 
-        private static bool HasSameOrder(IReadOnlyList<VideoLibraryData.VideoEntry> left,
-            IReadOnlyList<VideoLibraryData.VideoEntry> right)
-        {
-            if (left.Count != right.Count)
-            {
-                return false;
-            }
-
-            for (int index = 0; index < left.Count; index++)
-            {
-                if (left[index] != right[index])
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
         private void ApplyVideoToSlot(CardSlot slot, VideoLibraryData.VideoEntry video)
         {
             bool hasThumbnail = video.thumbnail != null;
@@ -420,7 +393,7 @@ namespace GreekProject.UI
 
         private void ShowVideoOptions(VideoLibraryData.VideoEntry video, RectTransform card, RectTransform moreRect)
         {
-            if (!interactionEnabled || video == null || card == null || moreRect == null || hiddenVideos.Contains(video))
+            if (!interactionEnabled || video == null || card == null || moreRect == null || IsHidden(video))
             {
                 return;
             }
@@ -497,7 +470,10 @@ namespace GreekProject.UI
                 return;
             }
 
-            hiddenVideos.Add(videoToHide);
+            if (!string.IsNullOrWhiteSpace(videoToHide.id))
+            {
+                hiddenVideoIds.Add(videoToHide.id);
+            }
             if (activeVideo == videoToHide)
             {
                 HidePlayerWithoutReplacement();
@@ -512,7 +488,7 @@ namespace GreekProject.UI
 
         private void OpenVideo(VideoLibraryData.VideoEntry video)
         {
-            if (!interactionEnabled || video == null || hiddenVideos.Contains(video))
+            if (!interactionEnabled || video == null || IsHidden(video))
             {
                 return;
             }
@@ -560,12 +536,7 @@ namespace GreekProject.UI
 
         public void ClosePlayer()
         {
-            VideoLibraryData.VideoEntry finishedVideo = activeVideo;
             HidePlayerWithoutReplacement();
-            if (replacePlayedVideoAfterClose)
-            {
-                ReplaceVisibleVideo(finishedVideo);
-            }
 
             if (!televisionFocused)
             {
@@ -575,9 +546,12 @@ namespace GreekProject.UI
 
         private void CompleteCurrentBroadcast()
         {
-            VideoLibraryData.VideoEntry finishedVideo = activeVideo;
             HidePlayerWithoutReplacement();
-            ReplaceVisibleVideo(finishedVideo);
+            if (replaceEntireFeedAfterTimedRotation)
+            {
+                ReplaceEntireVisibleFeed();
+                BindPrebuiltCards();
+            }
 
             // While focused, finishing a video returns to the six-card feed. Outside focus,
             // the television immediately starts another random frame-sequence broadcast.
@@ -619,7 +593,7 @@ namespace GreekProject.UI
             List<VideoLibraryData.VideoEntry> playable = new();
             foreach (VideoLibraryData.VideoEntry video in visibleVideos)
             {
-                if (video != null && !hiddenVideos.Contains(video) && frameSequences.ContainsKey(video))
+                if (video != null && !IsHidden(video) && frameSequences.ContainsKey(video))
                 {
                     playable.Add(video);
                 }
@@ -634,37 +608,49 @@ namespace GreekProject.UI
             StartVideo(playable[UnityEngine.Random.Range(0, playable.Count)]);
         }
 
-        private void ReplaceVisibleVideo(VideoLibraryData.VideoEntry videoToReplace)
+        private void ReplaceEntireVisibleFeed()
         {
-            if (videoToReplace == null || videoLibrary == null)
+            if (videoLibrary == null)
             {
                 return;
             }
 
-            int slotIndex = visibleVideos.IndexOf(videoToReplace);
-            if (slotIndex < 0)
-            {
-                return;
-            }
-
-            List<VideoLibraryData.VideoEntry> candidates = new();
+            List<VideoLibraryData.VideoEntry> previousVideos = new(visibleVideos);
+            List<VideoLibraryData.VideoEntry> eligibleVideos = new();
+            HashSet<string> eligibleIds = new(StringComparer.OrdinalIgnoreCase);
             foreach (VideoLibraryData.VideoEntry candidate in videoLibrary.Videos)
             {
-                if (candidate != null && candidate != videoToReplace && !hiddenVideos.Contains(candidate) &&
-                    !visibleVideos.Contains(candidate) &&
-                    frameSequences.ContainsKey(candidate))
+                if (candidate != null && !string.IsNullOrWhiteSpace(candidate.id) && !IsHidden(candidate) &&
+                    frameSequences.ContainsKey(candidate) && eligibleIds.Add(candidate.id))
                 {
-                    candidates.Add(candidate);
+                    eligibleVideos.Add(candidate);
                 }
             }
 
-            if (candidates.Count == 0)
+            List<VideoLibraryData.VideoEntry> freshCandidates =
+                eligibleVideos.FindAll(video => !previousVideos.Contains(video));
+            Shuffle(freshCandidates);
+            visibleVideos.Clear();
+            int targetCount = Mathf.Min(visibleVideoCount, cardSlots.Length, eligibleVideos.Count);
+            for (int index = 0; index < freshCandidates.Count && visibleVideos.Count < targetCount; index++)
             {
-                return;
+                visibleVideos.Add(freshCandidates[index]);
             }
 
-            visibleVideos[slotIndex] = candidates[UnityEngine.Random.Range(0, candidates.Count)];
-            BindPrebuiltCards();
+            if (visibleVideos.Count < targetCount)
+            {
+                eligibleVideos.RemoveAll(visibleVideos.Contains);
+                Shuffle(eligibleVideos);
+                for (int index = 0; index < eligibleVideos.Count && visibleVideos.Count < targetCount; index++)
+                {
+                    visibleVideos.Add(eligibleVideos[index]);
+                }
+            }
+        }
+
+        private bool IsHidden(VideoLibraryData.VideoEntry video)
+        {
+            return video != null && !string.IsNullOrWhiteSpace(video.id) && hiddenVideoIds.Contains(video.id);
         }
 
         private void TogglePlayback()

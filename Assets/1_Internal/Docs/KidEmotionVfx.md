@@ -37,9 +37,12 @@ the same state that video effects use for Kid animation.
 | `Happy` | Strong smile, wink, love, showing off |
 | `Anxious` | Annoyed, bored, tired, glaring |
 | `Panic` | Terrified, hurt, dizzy, angry, monster |
+| `Suspicious` | Indifference, curiosity, expectation before consuming a video |
 
-There are five variants for every state on each camera anchor. The controller
-chooses randomly and can avoid immediately repeating the previous variant.
+The four persistent states have five variants on each camera anchor. The
+temporary `Suspicious` state reuses three prebuilt suitable variants on each
+anchor. The controller chooses randomly and can avoid immediately repeating
+the previous variant.
 
 ## Camera rules
 
@@ -50,14 +53,25 @@ chooses randomly and can avoid immediately repeating the previous variant.
   used by every future Kid emotion controller, so TV never shows a Kid emotion.
 - If no gameplay camera is active, all VFX stay hidden.
 
+The status badge uses white arrows and text on dark green `POSITIVE` or dark
+red `NEGATIVE` backgrounds. Its text region is wide enough to keep the full
+`NEGATIVE` label aligned inside the badge without clipping.
+
 ## Inspector settings
 
 `KidEmotionVfxController` exposes all references, both prefab pools and timing:
 
 - `Display Duration Seconds`
-- `Minimum Repeat Interval Seconds`
-- `Maximum Repeat Interval Seconds`
-- `Show Immediately On Camera Or Emotion Change`
+- `Positive Minimum/Maximum Repeat Interval Seconds`: scene mac dinh `5-7`
+  giay, nen trang thai `Stable` hien VFX cung nhip voi `Happy`.
+- `Happy Minimum/Maximum Repeat Interval Seconds`: scene mac dinh `5-7` giay,
+  nen trang thai vui ve hien VFX thuong xuyen hon `Stable`.
+- `Negative Minimum/Maximum Repeat Interval Seconds`: scene mac dinh `3-5`
+  giay, nen bieu cam xau xuat hien day hon.
+- `Show Immediately When Negative`: bat; emotion xau moi hien phan ung ngay.
+- `Show Immediately When Positive`: tat; emotion on dinh doi theo interval.
+- `Show Immediately When Suspicious`: bat; dau hoi/cho doi hien ngay truoc khi
+  bo dem tieu thu video bat dau.
 - `Avoid Immediate Variant Repeat`
 - `Preserve Scene Pose`: keep enabled to preserve each anchor's pre-Play world
   offset and rotation while following the head root position.

@@ -62,6 +62,19 @@ Controller
 `Kid_Forcus Controller` chi quan ly chon Kid, orbit, collision camera focus va
 PhoneScreen. `TV_Forcus Controller` chi quan ly chon TV/Kid dang xem TV, camera
 TV va quyen raycast cua TV UI. Chuyen camera khong reset video TV dang phat;
+
+`KidFocusTarget` tach hai moc rieng:
+
+- `Selection Point`: dung de tinh hover/click tren man hinh; scene gan vao
+  `kid_selection_point` tai tam than Kid, local position `(0, 1.1, 0)`.
+- `Focus Point`: chi dung lam tam camera `Kid_Forcus` va giu nguyen pose camera.
+
+Scene dat `kid_focus_point` tai local position `(0, 1.55, 0)`, gan tam mat/than
+tren cua Kid. Offset Z cu `-1.34` da duoc loai bo vi no lam tam nhin va vi tri
+camera lech xa khoi character.
+
+Khong dung `Focus Point` lam hit-test, vi offset camera co the nam cach xa mesh Kid
+va lam vung bam bi lech.
 `TelevisionVideoFeedUI` tu quan ly broadcast 10 FPS va rotation. Object `Cameras` chi dung lam parent transform
 cua ba camera that:
 

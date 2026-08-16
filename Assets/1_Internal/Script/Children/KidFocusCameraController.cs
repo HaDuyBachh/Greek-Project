@@ -14,11 +14,15 @@ public class KidFocusCameraController : MonoBehaviour
     {
         public string kidId;
         public Transform kidRoot;
+        [Tooltip("Screen-space hover/click point. Keep separate from the camera focus point.")]
+        public Transform selectionPoint;
         public Transform focusPoint;
         public Outline outline;
         public KidWaypointAnimationTester activityController;
+        public KidDeviceUsageController deviceUsageController;
 
-        public bool IsValid => kidRoot != null && focusPoint != null;
+        public bool IsValid => kidRoot != null && selectionPoint != null && focusPoint != null &&
+                               activityController != null && deviceUsageController != null;
     }
 
     [Header("Cameras")]
@@ -69,6 +73,7 @@ public class KidFocusCameraController : MonoBehaviour
 
     public IReadOnlyList<KidFocusTarget> Kids => kids;
     public string SelectedKidId => selectedKid != null ? selectedKid.kidId : string.Empty;
+    public string HoveredKidId => hoveredKid != null ? hoveredKid.kidId : string.Empty;
     public bool IsFocusing => selectedKid != null;
     public bool IsPhoneScreenVisible => isPhoneScreenVisible;
     private Camera OverviewCamera => mainRoomController != null ? mainRoomController.ControlledCamera : null;
@@ -129,7 +134,7 @@ public class KidFocusCameraController : MonoBehaviour
                 return;
             }
 
-            if (WasPhoneTogglePressed())
+            if (WasDeviceActionPressed() || WasPhoneTogglePressed())
             {
                 SetPhoneScreenVisible(false);
             }
@@ -151,7 +156,13 @@ public class KidFocusCameraController : MonoBehaviour
             return;
         }
 
-        if (IsFocusing && WasPhoneTogglePressed())
+        if (IsFocusing && WasDeviceActionPressed())
+        {
+            HandleSelectedKidDeviceAction();
+            return;
+        }
+
+        if (IsFocusing && WasPhoneTogglePressed() && selectedKid.deviceUsageController.CanUsePhone)
         {
             SetPhoneScreenVisible(!isPhoneScreenVisible);
             return;
@@ -189,6 +200,38 @@ public class KidFocusCameraController : MonoBehaviour
         }
 
         return keyboard.spaceKey.wasPressedThisFrame;
+    }
+
+    private bool WasDeviceActionPressed()
+    {
+        Keyboard keyboard = Keyboard.current;
+        return keyboard != null &&
+               (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame);
+    }
+
+    private void HandleSelectedKidDeviceAction()
+    {
+        if (selectedKid == null || selectedKid.deviceUsageController == null)
+        {
+            return;
+        }
+
+        KidDeviceUsageController usage = selectedKid.deviceUsageController;
+        KidDeviceUsageController.DeviceActivity enterActivity = usage.ResolveEnterActivity();
+        if (enterActivity == KidDeviceUsageController.DeviceActivity.Phone)
+        {
+            if (televisionFocusController != null && televisionFocusController.IsFocusing)
+            {
+                return;
+            }
+
+            SetPhoneScreenVisible(true);
+        }
+        else if (enterActivity == KidDeviceUsageController.DeviceActivity.Television)
+        {
+            SetPhoneScreenVisible(false);
+            televisionFocusController?.FocusTelevision();
+        }
     }
 
     private void LateUpdate()
@@ -330,7 +373,7 @@ public class KidFocusCameraController : MonoBehaviour
                 continue;
             }
 
-            Vector3 projectedPoint = selectionCamera.WorldToScreenPoint(kid.focusPoint.position);
+            Vector3 projectedPoint = selectionCamera.WorldToScreenPoint(kid.selectionPoint.position);
             if (projectedPoint.z <= 0f)
             {
                 continue;
@@ -560,7 +603,8 @@ public class KidFocusCameraController : MonoBehaviour
 
     public void SetPhoneScreenVisible(bool isVisible)
     {
-        bool nextVisibleState = isVisible && IsFocusing;
+        bool televisionHasFocus = televisionFocusController != null && televisionFocusController.IsFocusing;
+        bool nextVisibleState = isVisible && IsFocusing && !televisionHasFocus;
         if (isPhoneScreenVisible != nextVisibleState &&
             pauseKidActivityWhilePhoneVisible &&
             selectedKid != null &&

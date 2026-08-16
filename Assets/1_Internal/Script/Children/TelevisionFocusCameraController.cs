@@ -12,12 +12,16 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     public sealed class KidTelevisionTarget
     {
         public Transform kidRoot;
+        [Tooltip("Screen-space click point for the Kid. Keep separate from the camera focus point.")]
+        public Transform selectionPoint;
         public Transform focusPoint;
         public KidWaypointAnimationTester activityController;
+        public KidDeviceUsageController deviceUsageController;
         public LabeledWaypoint[] televisionSeats;
         public string[] televisionAnimations = { "SitChairIdle" };
 
-        public bool IsValid => kidRoot != null && focusPoint != null && activityController != null;
+        public bool IsValid => kidRoot != null && selectionPoint != null && focusPoint != null &&
+                               activityController != null && deviceUsageController != null;
     }
 
     [Header("Cameras")]
@@ -90,7 +94,7 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
                 continue;
             }
 
-            foundTarget |= TryGetScreenDistance(overviewCamera, kid.focusPoint.position, screenPosition,
+            foundTarget |= TryGetScreenDistance(overviewCamera, kid.selectionPoint.position, screenPosition,
                 kidSelectionRadius, ref nearestDistance);
         }
 
@@ -137,7 +141,7 @@ public sealed class TelevisionFocusCameraController : MonoBehaviour
     private bool IsKidWatchingTelevision(KidTelevisionTarget kid)
     {
         if (kid == null || !kid.IsValid || !kid.kidRoot.gameObject.activeInHierarchy ||
-            kid.activityController.IsTravelling)
+            kid.activityController.IsTravelling || !kid.deviceUsageController.IsWatchingTelevision)
         {
             return false;
         }
